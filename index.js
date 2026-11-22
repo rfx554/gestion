@@ -204,14 +204,16 @@ client.on('interactionCreate', async interaction => {
     const btn = new ButtonBuilder()
       .setCustomId('giveaway_join')
       .setLabel('Participer')
+      .setEmoji('🎉')
       .setStyle(ButtonStyle.Secondary);
     const row = new ActionRowBuilder().addComponents(btn);
 
     const embed = new EmbedBuilder()
-      .setTitle(`Giveaway: ${prix}`)
-      .addFields(
-        { name: 'Fin',          value: `<t:${Math.floor(endTime / 1000)}:R>`, inline: true },
-        { name: 'Participants', value: '0',                                    inline: true },
+      .setTitle('🎊 GIVEAWAY')
+      .setDescription(
+        `**Prix :** ${prix}\n` +
+        `**Fin :** <t:${Math.floor(endTime / 1000)}:R>\n` +
+        `**Participants :** 0`
       )
       .setColor(0x2b2d31);
 
@@ -279,10 +281,11 @@ client.on('interactionCreate', async interaction => {
 // Mise a jour de l'embed giveaway en cours
 async function updateGiveawayMessage(message, gw) {
   const embed = new EmbedBuilder()
-    .setTitle(`Giveaway: ${gw.prize}`)
-    .addFields(
-      { name: 'Fin',          value: `<t:${Math.floor(gw.endTime / 1000)}:R>`, inline: true },
-      { name: 'Participants', value: `${gw.participants.size}`,                 inline: true },
+    .setTitle('🎊 GIVEAWAY')
+    .setDescription(
+      `**Prix :** ${gw.prize}\n` +
+      `**Fin :** <t:${Math.floor(gw.endTime / 1000)}:R>\n` +
+      `**Participants :** ${gw.participants.size}`
     )
     .setColor(0x2b2d31);
   await message.edit({ embeds: [embed] }).catch(() => {});
@@ -310,8 +313,11 @@ async function endGiveaway(messageId, guild) {
 
   if (participants.length === 0) {
     const embedFin = new EmbedBuilder()
-      .setTitle(`Giveaway: ${gw.prize}`)
-      .addFields({ name: 'Resultat', value: 'Aucun participant.' })
+      .setTitle('🎊 GIVEAWAY')
+      .setDescription(
+        `**Prix :** ${gw.prize}\n` +
+        `**Resultat :** Aucun participant.`
+      )
       .setColor(0x2b2d31);
     await msgObj.edit({ embeds: [embedFin], components: [row] }).catch(() => {});
     return;
@@ -319,12 +325,12 @@ async function endGiveaway(messageId, guild) {
 
   const winnerId = participants[Math.floor(Math.random() * participants.length)];
 
-  // Mettre a jour l'embed avec le gagnant (comme dans la capture)
   const embedFin = new EmbedBuilder()
-    .setTitle(`Giveaway: ${gw.prize}`)
-    .addFields(
-      { name: 'Gagnant',      value: `<@${winnerId}>`,        inline: true },
-      { name: 'Participants', value: `${participants.length}`, inline: true },
+    .setTitle('🎊 GIVEAWAY')
+    .setDescription(
+      `**Prix :** ${gw.prize}\n` +
+      `**Gagnant :** <@${winnerId}>\n` +
+      `**Participants :** ${participants.length}`
     )
     .setColor(0x2b2d31);
 
