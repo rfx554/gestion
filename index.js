@@ -161,7 +161,7 @@ client.on('interactionCreate', async interaction => {
     await interaction.editReply({ content: `✅ ${totalDeleted} message(s) supprimé(s).` });
 
     // Image dans le salon, disparaît après 3 secondes
-    const imgMsg = await interaction.channel.send({ files: [att('clear')] });
+    const imgMsg = await interaction.channel.send({ flags: [4096], files: [att('clear')] });
     setTimeout(() => imgMsg.delete().catch(() => {}), 3000);
   }
 
@@ -175,7 +175,7 @@ client.on('interactionCreate', async interaction => {
         CreatePrivateThreads: false, UseApplicationCommands: false,
       });
       await interaction.deleteReply();
-      await interaction.channel.send({ files: [att('lock')] });
+      await interaction.channel.send({ flags: [4096], files: [att('lock')] });
     } catch (e) {
       console.error(e);
       await interaction.editReply({ content: 'Permission insuffisante.' });
@@ -192,7 +192,7 @@ client.on('interactionCreate', async interaction => {
         CreatePrivateThreads: true, UseApplicationCommands: true,
       });
       await interaction.deleteReply();
-      await interaction.channel.send({ files: [att('unlock')] });
+      await interaction.channel.send({ flags: [4096], files: [att('unlock')] });
     } catch (e) {
       console.error(e);
       await interaction.editReply({ content: 'Permission insuffisante.' });
@@ -237,7 +237,7 @@ client.on('interactionCreate', async interaction => {
 
     // Message public du giveaway
     const msg = await interaction.channel.send({
-      files: [att('giveaway')],
+      flags: [4096], files: [att('giveaway')],
       content: `🎉 **GIVEAWAY**\n**Prix :** ${prix}\n**Fin :** <t:${Math.floor(endTime / 1000)}:R>\n**Participants :** 0`,
       components: [row],
     });
@@ -264,7 +264,7 @@ client.on('interactionCreate', async interaction => {
       try {
         await member.send({
           content: ping ? `${member}\n${message}` : message,
-          files: [att('dmall')],
+          flags: [4096], files: [att('dmall')],
         });
         sent++;
       } catch { failed++; }
@@ -298,7 +298,7 @@ client.on('interactionCreate', async interaction => {
       });
 
       await newChannel.setPosition(position).catch(() => {});
-      await newChannel.send({ files: [att('renew')] });
+      await newChannel.send({ flags: [4096], files: [att('renew')] });
     } catch (e) {
       console.error(e);
       try {
