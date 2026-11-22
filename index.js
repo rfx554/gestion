@@ -263,7 +263,7 @@ client.on('interactionCreate', async interaction => {
     let sent = 0, failed = 0;
     for (const [, member] of targets) {
       try {
-        await member.send({ content: ping ? `${member}\n${message}` : message });
+        await member.send({ content: ping ? `${member} ${message}` : message });
         sent++;
       } catch { failed++; }
       await sleep(1100);
