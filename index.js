@@ -102,10 +102,13 @@ client.once('ready', async () => {
   console.log(`Connecte : ${client.user.tag}`);
   const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
   try {
-    // 1. Vider toutes les commandes globales (supprime les doublons)
+    // 1. Vider commandes globales
     await rest.put(Routes.applicationCommands(client.user.id), { body: [] });
     console.log('Commandes globales supprimees.');
-    // 2. Enregistrer les commandes guild (instantane)
+    // 2. Vider commandes guild existantes
+    await rest.put(Routes.applicationGuildCommands(client.user.id, GUILD_ID), { body: [] });
+    console.log('Commandes guild supprimees.');
+    // 3. Reinscrire proprement
     await rest.put(Routes.applicationGuildCommands(client.user.id, GUILD_ID), { body: commands });
     console.log('Commandes guild enregistrees.');
   } catch (e) { console.error(e); }
