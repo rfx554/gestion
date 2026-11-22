@@ -312,7 +312,7 @@ client.on('messageCreate', async message => {
   if (prev.length >= SPAM_LIMIT) {
     spamMap.set(message.author.id, []);
     try {
-      const warn = await message.channel.send(`${message.author} ✋ Tu envoies des messages trop rapidement.`);
+      const warn = await message.channel.send(`${message.author}Tu envoies des messages trop rapidement.`);
       setTimeout(() => warn.delete().catch(() => {}), 4000);
     } catch {}
   }
