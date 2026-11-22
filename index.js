@@ -3,7 +3,6 @@ const {
   ButtonBuilder, ButtonStyle, ActionRowBuilder,
   EmbedBuilder, PermissionsBitField,
 } = require('discord.js');
-const path = require('path');
 require('dotenv').config();
 
 const GUILD_ID = process.env.GUILD_ID;
@@ -32,15 +31,15 @@ const commands = [
     options: [{ name: 'nombre', description: 'Nombre de messages (1-100)', type: 4, required: true }],
   },
   { name: 'lock',   description: 'Verrouille le salon',   default_member_permissions: '8' },
-  { name: 'unlock', description: 'Déverrouille le salon', default_member_permissions: '8' },
+  { name: 'unlock', description: 'Deverrouille le salon', default_member_permissions: '8' },
   {
     name: 'to',
     description: 'Exclure temporairement un membre',
     default_member_permissions: '8',
     options: [
-      { name: 'membre', description: 'Membre à exclure', type: 6, required: true },
+      { name: 'membre', description: 'Membre a exclure', type: 6, required: true },
       {
-        name: 'duree', description: 'Durée', type: 3, required: true,
+        name: 'duree', description: 'Duree', type: 3, required: true,
         choices: [
           { name: '60 secondes', value: '60' },
           { name: '5 minutes',   value: '300' },
@@ -55,12 +54,12 @@ const commands = [
   },
   {
     name: 'giveaway',
-    description: 'Lancer un giveaway 🎉',
+    description: 'Lancer un giveaway',
     default_member_permissions: '8',
     options: [
       { name: 'prix', description: 'Prix du giveaway', type: 3, required: true },
       {
-        name: 'duree', description: 'Durée', type: 3, required: true,
+        name: 'duree', description: 'Duree', type: 3, required: true,
         choices: [
           { name: '1 minute',   value: '60' },
           { name: '5 minutes',  value: '300' },
@@ -76,7 +75,7 @@ const commands = [
   },
   {
     name: 'dmall',
-    description: 'Envoie un DM à tous les membres',
+    description: 'Envoie un DM a tous les membres',
     default_member_permissions: '8',
     options: [
       { name: 'message', description: 'Contenu du DM', type: 3, required: true },
@@ -86,7 +85,7 @@ const commands = [
       },
     ],
   },
-  { name: 'renew', description: "Recrée ce salon à l'identique", default_member_permissions: '8' },
+  { name: 'renew', description: "Recree ce salon a l'identique", default_member_permissions: '8' },
 ];
 
 client.once('ready', async () => {
@@ -102,38 +101,46 @@ client.once('ready', async () => {
 
 client.on('interactionCreate', async interaction => {
 
+  // Bouton participer au giveaway
   if (interaction.isButton() && interaction.customId === 'giveaway_join') {
     const gw = giveaways.get(interaction.message.id);
-    if (!gw) return interaction.reply({ content: 'Ce giveaway est terminé.', ephemeral: true });
+    if (!gw) return interaction.reply({ content: 'Ce giveaway est termine.', ephemeral: true });
     if (gw.participants.has(interaction.user.id))
-      return interaction.reply({ content: 'Tu participes déjà ! 🎉', ephemeral: true });
+      return interaction.reply({ content: 'Tu participes deja !', ephemeral: true });
     gw.participants.add(interaction.user.id);
     await updateGiveawayMessage(interaction.message, gw);
-    return interaction.reply({ content: '🎉 Tu participes au giveaway !', ephemeral: true });
+    return interaction.reply({ content: 'Tu participes au giveaway !', ephemeral: true });
   }
 
   if (!interaction.isChatInputCommand()) return;
   if (!interaction.memberPermissions?.has(PermissionsBitField.Flags.Administrator)) return;
 
   const { commandName } = interaction;
+  const executor = interaction.user;
 
   // /clear
   if (commandName === 'clear') {
     await interaction.deferReply({ ephemeral: true });
     const nombre = Math.min(Math.max(interaction.options.getInteger('nombre'), 1), 100);
-    const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
     let totalDeleted = 0;
     try {
-      const fetched = await interaction.channel.messages.fetch({ limit: nombre });
-      const recent  = fetched.filter(m => m.createdTimestamp > twoWeeksAgo);
-      const old     = fetched.filter(m => m.createdTimestamp <= twoWeeksAgo);
-      if (recent.size > 0) {
+      const fetched = await interaction.channel.messages.fetch({ limit: 100 });
+      const sorted  = fetched.sort((a, b) => b.createdTimestamp - a.createdTimestamp).first(nombre);
+      const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
+      const recent  = sorted.filter(m => m.createdTimestamp > twoWeeksAgo);
+      const old     = sorted.filter(m => m.createdTimestamp <= twoWeeksAgo);
+      if (recent.length > 0) {
         const deleted = await interaction.channel.bulkDelete(recent, true);
         totalDeleted += deleted.size;
       }
-      for (const msg of old.values()) { await msg.delete().catch(() => {}); totalDeleted++; }
+      for (const msg of old) {
+        await msg.delete().catch(() => {});
+        totalDeleted++;
+      }
     } catch (e) { console.error(e); }
-    await interaction.editReply({ content: `${interaction.user} 🗑️ **${totalDeleted}** message(s) supprimé(s).` });
+    await interaction.editReply({
+      content: `**${totalDeleted}** message(s) supprime(s) par ${executor}.`,
+    });
   }
 
   // /lock
@@ -144,7 +151,9 @@ client.on('interactionCreate', async interaction => {
         SendMessagesInThreads: false, CreatePublicThreads: false,
         CreatePrivateThreads: false, UseApplicationCommands: false,
       });
-      await interaction.reply({ content: `${interaction.user} 🔒 Ce salon est désormais **fermé**.` });
+      await interaction.reply({
+        content: `Ce salon a ete **ferme** par ${executor}.`,
+      });
     } catch (e) {
       console.error(e);
       await interaction.reply({ content: 'Permission insuffisante.', ephemeral: true });
@@ -159,7 +168,9 @@ client.on('interactionCreate', async interaction => {
         SendMessagesInThreads: true, CreatePublicThreads: true,
         CreatePrivateThreads: true, UseApplicationCommands: true,
       });
-      await interaction.reply({ content: `${interaction.user} 🔓 Ce salon est désormais **ouvert**.` });
+      await interaction.reply({
+        content: `Ce salon a ete **ouvert** par ${executor}.`,
+      });
     } catch (e) {
       console.error(e);
       await interaction.reply({ content: 'Permission insuffisante.', ephemeral: true });
@@ -175,8 +186,8 @@ client.on('interactionCreate', async interaction => {
     try {
       await member.timeout(seconds * 1000, raison || 'Aucune raison');
       const txt = raison
-        ? `${member} a été **TO** ${labels[seconds] || seconds + 's'} (${raison})`
-        : `${member} a été **TO** ${labels[seconds] || seconds + 's'}`;
+        ? `${member} a ete **TO** ${labels[seconds] || seconds + 's'} par ${executor} *(${raison})*`
+        : `${member} a ete **TO** ${labels[seconds] || seconds + 's'} par ${executor}`;
       await interaction.reply({ content: txt });
     } catch (e) {
       console.error(e);
@@ -191,25 +202,31 @@ client.on('interactionCreate', async interaction => {
     const endTime = Date.now() + seconds * 1000;
 
     const btn = new ButtonBuilder()
-      .setCustomId('giveaway_join').setLabel('🎉 Participer').setStyle(ButtonStyle.Secondary);
+      .setCustomId('giveaway_join')
+      .setLabel('Participer')
+      .setStyle(ButtonStyle.Secondary);
     const row = new ActionRowBuilder().addComponents(btn);
 
     const embed = new EmbedBuilder()
       .setTitle(`Giveaway: ${prix}`)
       .addFields(
-        { name: 'Fin', value: `<t:${Math.floor(endTime / 1000)}:R>`, inline: true },
-        { name: 'Participants', value: '0', inline: true },
+        { name: 'Fin',          value: `<t:${Math.floor(endTime / 1000)}:R>`, inline: true },
+        { name: 'Participants', value: '0',                                    inline: true },
       )
       .setColor(0x2b2d31);
 
     await interaction.reply({
-      content: `${interaction.user}`,
       embeds: [embed],
       components: [row],
     });
 
     const msg = await interaction.fetchReply();
-    giveaways.set(msg.id, { channelId: interaction.channel.id, prize: prix, endTime, participants: new Set(), embed });
+    giveaways.set(msg.id, {
+      channelId: interaction.channel.id,
+      prize: prix,
+      endTime,
+      participants: new Set(),
+    });
     setTimeout(() => endGiveaway(msg.id, interaction.guild), seconds * 1000);
   }
 
@@ -218,7 +235,7 @@ client.on('interactionCreate', async interaction => {
     await interaction.deferReply({ ephemeral: true });
     const message = interaction.options.getString('message');
     const ping    = interaction.options.getString('ping') === 'oui';
-    await interaction.editReply({ content: `📨 Envoi en cours...` });
+    await interaction.editReply({ content: 'Envoi en cours...' });
 
     let members;
     try { members = await interaction.guild.members.fetch(); } catch (e) { console.error(e); return; }
@@ -232,7 +249,7 @@ client.on('interactionCreate', async interaction => {
       } catch { failed++; }
       await sleep(1100);
     }
-    await interaction.followUp({ content: `✅ Envoyés : **${sent}** | Échecs : **${failed}**`, ephemeral: true });
+    await interaction.followUp({ content: `Envoyes : **${sent}** | Echecs : **${failed}**`, ephemeral: true });
   }
 
   // /renew
@@ -251,25 +268,27 @@ client.on('interactionCreate', async interaction => {
         permissionOverwrites: permOverwrites, reason: 'renew command',
       });
       await newChannel.setPosition(position).catch(() => {});
-      await newChannel.send(`${interaction.user} 🔄 Ce salon a été **recréé** à l'identique.`);
+      await newChannel.send(`Ce salon a ete **recree** par ${executor}.`);
     } catch (e) {
       console.error(e);
-      try { await interaction.followUp({ content: `❌ Erreur : ${e.message}`, ephemeral: true }); } catch {}
+      try { await interaction.followUp({ content: `Erreur : ${e.message}`, ephemeral: true }); } catch {}
     }
   }
 });
 
+// Mise a jour de l'embed giveaway en cours
 async function updateGiveawayMessage(message, gw) {
   const embed = new EmbedBuilder()
     .setTitle(`Giveaway: ${gw.prize}`)
     .addFields(
-      { name: 'Fin', value: `<t:${Math.floor(gw.endTime / 1000)}:R>`, inline: true },
-      { name: 'Participants', value: `${gw.participants.size}`, inline: true },
+      { name: 'Fin',          value: `<t:${Math.floor(gw.endTime / 1000)}:R>`, inline: true },
+      { name: 'Participants', value: `${gw.participants.size}`,                 inline: true },
     )
     .setColor(0x2b2d31);
   await message.edit({ embeds: [embed] }).catch(() => {});
 }
 
+// Fin du giveaway : tirage au sort + annonce
 async function endGiveaway(messageId, guild) {
   const gw = giveaways.get(messageId);
   if (!gw) return;
@@ -277,32 +296,45 @@ async function endGiveaway(messageId, guild) {
   if (!channel) return;
   const participants = [...gw.participants];
   giveaways.delete(messageId);
+
   let msgObj;
   try { msgObj = await channel.messages.fetch(messageId); } catch { return; }
+
+  // Desactiver le bouton
   const disabledBtn = new ButtonBuilder()
-    .setCustomId('giveaway_join').setLabel('🎉 Participer')
-    .setStyle(ButtonStyle.Secondary).setDisabled(true);
+    .setCustomId('giveaway_join')
+    .setLabel('Participer')
+    .setStyle(ButtonStyle.Secondary)
+    .setDisabled(true);
   const row = new ActionRowBuilder().addComponents(disabledBtn);
+
   if (participants.length === 0) {
     const embedFin = new EmbedBuilder()
       .setTitle(`Giveaway: ${gw.prize}`)
-      .addFields({ name: 'Résultat', value: 'Aucun participant.' })
+      .addFields({ name: 'Resultat', value: 'Aucun participant.' })
       .setColor(0x2b2d31);
     await msgObj.edit({ embeds: [embedFin], components: [row] }).catch(() => {});
     return;
   }
+
   const winnerId = participants[Math.floor(Math.random() * participants.length)];
+
+  // Mettre a jour l'embed avec le gagnant (comme dans la capture)
   const embedFin = new EmbedBuilder()
     .setTitle(`Giveaway: ${gw.prize}`)
     .addFields(
-      { name: 'Gagnant', value: `<@${winnerId}>`, inline: true },
+      { name: 'Gagnant',      value: `<@${winnerId}>`,        inline: true },
       { name: 'Participants', value: `${participants.length}`, inline: true },
     )
     .setColor(0x2b2d31);
+
   await msgObj.edit({ embeds: [embedFin], components: [row] }).catch(() => {});
-  await channel.send(`🎉 Félicitations <@${winnerId}> ! Tu remportes **${gw.prize}** !`);
+
+  // Message d'annonce separe
+  await channel.send(`Felicitations <@${winnerId}> ! Tu remportes **${gw.prize}** !`);
 }
 
+// Anti-spam
 client.on('messageCreate', async message => {
   if (message.author.bot || !message.guild) return;
   const now = Date.now();
@@ -312,7 +344,7 @@ client.on('messageCreate', async message => {
   if (prev.length >= SPAM_LIMIT) {
     spamMap.set(message.author.id, []);
     try {
-      const warn = await message.channel.send(`${message.author}Tu envoies des messages trop rapidement.`);
+      const warn = await message.channel.send(`${message.author} Tu envoies des messages trop rapidement.`);
       setTimeout(() => warn.delete().catch(() => {}), 4000);
     } catch {}
   }
