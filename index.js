@@ -1,7 +1,7 @@
 const {
   Client, GatewayIntentBits, Partials, REST, Routes,
   ButtonBuilder, ButtonStyle, ActionRowBuilder,
-  AttachmentBuilder, PermissionsBitField,
+  AttachmentBuilder, PermissionsBitField, MessageFlags,
 } = require('discord.js');
 const path = require('path');
 require('dotenv').config();
@@ -161,7 +161,7 @@ client.on('interactionCreate', async interaction => {
     await interaction.editReply({ content: `✅ ${totalDeleted} message(s) supprimé(s).` });
 
     // Image dans le salon, disparaît après 3 secondes
-    const imgMsg = await interaction.channel.send({ flags: [4096], files: [att('clear')] });
+    const imgMsg = await interaction.channel.send({ flags: MessageFlags.SuppressEmbeds, files: [att('clear')] });
     setTimeout(() => imgMsg.delete().catch(() => {}), 3000);
   }
 
@@ -175,7 +175,7 @@ client.on('interactionCreate', async interaction => {
         CreatePrivateThreads: false, UseApplicationCommands: false,
       });
       await interaction.deleteReply();
-      await interaction.channel.send({ flags: [4096], files: [att('lock')] });
+      await interaction.channel.send({ flags: MessageFlags.SuppressEmbeds, files: [att('lock')] });
     } catch (e) {
       console.error(e);
       await interaction.editReply({ content: 'Permission insuffisante.' });
@@ -192,7 +192,7 @@ client.on('interactionCreate', async interaction => {
         CreatePrivateThreads: true, UseApplicationCommands: true,
       });
       await interaction.deleteReply();
-      await interaction.channel.send({ flags: [4096], files: [att('unlock')] });
+      await interaction.channel.send({ flags: MessageFlags.SuppressEmbeds, files: [att('unlock')] });
     } catch (e) {
       console.error(e);
       await interaction.editReply({ content: 'Permission insuffisante.' });
@@ -237,7 +237,7 @@ client.on('interactionCreate', async interaction => {
 
     // Message public du giveaway
     const msg = await interaction.channel.send({
-      flags: [4096], files: [att('giveaway')],
+      flags: MessageFlags.SuppressEmbeds, files: [att('giveaway')],
       content: `🎉 **GIVEAWAY**\n**Prix :** ${prix}\n**Fin :** <t:${Math.floor(endTime / 1000)}:R>\n**Participants :** 0`,
       components: [row],
     });
@@ -264,7 +264,7 @@ client.on('interactionCreate', async interaction => {
       try {
         await member.send({
           content: ping ? `${member}\n${message}` : message,
-          flags: [4096], files: [att('dmall')],
+          flags: MessageFlags.SuppressEmbeds, files: [att('dmall')],
         });
         sent++;
       } catch { failed++; }
@@ -298,7 +298,7 @@ client.on('interactionCreate', async interaction => {
       });
 
       await newChannel.setPosition(position).catch(() => {});
-      await newChannel.send({ flags: [4096], files: [att('renew')] });
+      await newChannel.send({ flags: MessageFlags.SuppressEmbeds, files: [att('renew')] });
     } catch (e) {
       console.error(e);
       try {
