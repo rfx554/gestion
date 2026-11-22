@@ -201,7 +201,7 @@ client.on('interactionCreate', async interaction => {
     try {
       await member.timeout(seconds * 1000, raison || 'Aucune raison');
       const txt = raison
-        ? `${member} a été **TO** ${labels[seconds] || seconds + 's'} — ${raison}`
+        ? `${member} a été **TO** ${labels[seconds] || seconds + 's'} ${raison}`
         : `${member} a été **TO** ${labels[seconds] || seconds + 's'}`;
       await interaction.reply({ content: txt });
     } catch (e) {
