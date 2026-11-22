@@ -124,19 +124,9 @@ client.on('interactionCreate', async interaction => {
     const nombre = Math.min(Math.max(interaction.options.getInteger('nombre'), 1), 100);
     let totalDeleted = 0;
     try {
-      const fetched = await interaction.channel.messages.fetch({ limit: 100 });
-      const sorted  = fetched.sort((a, b) => b.createdTimestamp - a.createdTimestamp).first(nombre);
-      const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
-      const recent  = sorted.filter(m => m.createdTimestamp > twoWeeksAgo);
-      const old     = sorted.filter(m => m.createdTimestamp <= twoWeeksAgo);
-      if (recent.length > 0) {
-        const deleted = await interaction.channel.bulkDelete(recent, true);
-        totalDeleted += deleted.size;
-      }
-      for (const msg of old) {
-        await msg.delete().catch(() => {});
-        totalDeleted++;
-      }
+      // bulkDelete avec filterOld:true gere automatiquement les messages >14j
+      const deleted = await interaction.channel.bulkDelete(nombre, true);
+      totalDeleted = deleted.size;
     } catch (e) { console.error(e); }
     await interaction.editReply({
       content: `**${totalDeleted}** message(s) supprime(s) par ${executor}.`,
@@ -152,7 +142,7 @@ client.on('interactionCreate', async interaction => {
         CreatePrivateThreads: false, UseApplicationCommands: false,
       });
       await interaction.reply({
-        content: `Ce salon a ete **ferme** par ${executor}.`,
+        content: `Ce salon a ete **ferme** par **${executor.username}**.`,
       });
     } catch (e) {
       console.error(e);
@@ -169,7 +159,7 @@ client.on('interactionCreate', async interaction => {
         CreatePrivateThreads: true, UseApplicationCommands: true,
       });
       await interaction.reply({
-        content: `Ce salon a ete **ouvert** par ${executor}.`,
+        content: `Ce salon a ete **ouvert** par **${executor.username}**.`,
       });
     } catch (e) {
       console.error(e);
