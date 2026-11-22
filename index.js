@@ -4,8 +4,8 @@ const {
 } = require('discord.js');
 require('dotenv').config();
 
-const OWNER_ID  = '1348347939474374786';
-const GUILD_ID  = process.env.GUILD_ID;
+const OWNER_ID = '1348347939474374786';
+const GUILD_ID = process.env.GUILD_ID;
 
 const client = new Client({
   intents: [
@@ -18,30 +18,36 @@ const client = new Client({
   partials: [Partials.Message, Partials.Channel],
 });
 
-// Anti-spam
-const spamMap   = new Map();
+const spamMap    = new Map();
 const SPAM_LIMIT  = 5;
 const SPAM_WINDOW = 5000;
+const giveaways  = new Map();
 
-// Giveaways actifs
-const giveaways = new Map();
-
-// ─── Commandes ────────────────────────────────────────────────────────────────
 const commands = [
   {
     name: 'clear',
     description: 'Supprime des messages dans ce salon',
+    default_member_permissions: '0',
     options: [{ name: 'nombre', description: 'Nombre de messages (1-100)', type: 4, required: true }],
   },
-  { name: 'lock',   description: 'Verrouille le salon' },
-  { name: 'unlock', description: 'Déverrouille le salon' },
+  {
+    name: 'lock',
+    description: 'Verrouille le salon',
+    default_member_permissions: '0',
+  },
+  {
+    name: 'unlock',
+    description: 'Déverrouille le salon',
+    default_member_permissions: '0',
+  },
   {
     name: 'to',
     description: 'Exclure temporairement un membre',
+    default_member_permissions: '0',
     options: [
       { name: 'membre', description: 'Membre à exclure', type: 6, required: true },
       {
-        name: 'durée', description: 'Durée', type: 3, required: true,
+        name: 'duree', description: 'Durée', type: 3, required: true,
         choices: [
           { name: '60 secondes', value: '60' },
           { name: '5 minutes',   value: '300' },
@@ -57,10 +63,11 @@ const commands = [
   {
     name: 'giveaway',
     description: 'Lancer un giveaway',
+    default_member_permissions: '0',
     options: [
       { name: 'prix', description: 'Prix du giveaway', type: 3, required: true },
       {
-        name: 'durée', description: 'Durée', type: 3, required: true,
+        name: 'duree', description: 'Durée', type: 3, required: true,
         choices: [
           { name: '1 minute',   value: '60' },
           { name: '5 minutes',  value: '300' },
@@ -76,7 +83,8 @@ const commands = [
   },
   {
     name: 'dmall',
-    description: 'Envoie un DM embed à tous les membres',
+    description: 'Envoie un DM embed a tous les membres',
+    default_member_permissions: '0',
     options: [
       { name: 'message', description: 'Contenu du DM', type: 3, required: true },
       {
@@ -90,39 +98,34 @@ const commands = [
   },
 ];
 
-// ─── Ready ────────────────────────────────────────────────────────────────────
 client.once('ready', async () => {
-  console.log(`Connecté : ${client.user.tag}`);
+  console.log(`Connecte : ${client.user.tag}`);
   const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
   try {
-    // Guild commands = instantané
+    // 1. Vider toutes les commandes globales (supprime les doublons)
     await rest.put(Routes.applicationCommands(client.user.id), { body: [] });
-    await rest.put(
-      Routes.applicationGuildCommands(client.user.id, GUILD_ID),
-      { body: commands }
-    );
-    console.log('Commandes enregistrées instantanément.');
+    console.log('Commandes globales supprimees.');
+    // 2. Enregistrer les commandes guild (instantane)
+    await rest.put(Routes.applicationGuildCommands(client.user.id, GUILD_ID), { body: commands });
+    console.log('Commandes guild enregistrees.');
   } catch (e) { console.error(e); }
 });
 
-// ─── Interactions ─────────────────────────────────────────────────────────────
 client.on('interactionCreate', async interaction => {
 
   // Bouton giveaway : tout le monde peut participer
   if (interaction.isButton() && interaction.customId === 'giveaway_join') {
     const gw = giveaways.get(interaction.message.id);
-    if (!gw) return interaction.reply({ content: 'Ce giveaway est terminé.', ephemeral: true });
+    if (!gw) return interaction.reply({ content: 'Ce giveaway est termine.', ephemeral: true });
     if (gw.participants.has(interaction.user.id))
-      return interaction.reply({ content: 'Tu participes déjà.', ephemeral: true });
-
+      return interaction.reply({ content: 'Tu participes deja.', ephemeral: true });
     gw.participants.add(interaction.user.id);
     await updateGiveawayEmbed(interaction.message, gw);
     return interaction.reply({ content: 'Tu participes au giveaway !', ephemeral: true });
   }
 
-  // Slash commands : owner uniquement, silence total sinon
   if (!interaction.isChatInputCommand()) return;
-  if (interaction.user.id !== OWNER_ID) return;
+  if (interaction.user.id !== OWNER_ID) return; // silence total pour les autres
 
   const { commandName } = interaction;
 
@@ -145,7 +148,7 @@ client.on('interactionCreate', async interaction => {
         totalDeleted++;
       }
     } catch (e) { console.error(e); }
-    await interaction.editReply({ content: `${totalDeleted} message(s) supprimé(s).` });
+    await interaction.editReply({ content: `${totalDeleted} message(s) supprime(s).` });
   }
 
   // /lock
@@ -157,7 +160,7 @@ client.on('interactionCreate', async interaction => {
         SendMessagesInThreads: false, CreatePublicThreads: false,
         CreatePrivateThreads: false, UseApplicationCommands: false,
       });
-      await interaction.editReply({ content: 'Salon verrouillé.' });
+      await interaction.editReply({ content: 'Salon verrouille.' });
     } catch (e) {
       console.error(e);
       await interaction.editReply({ content: 'Permission insuffisante.' });
@@ -173,7 +176,7 @@ client.on('interactionCreate', async interaction => {
         SendMessagesInThreads: true, CreatePublicThreads: true,
         CreatePrivateThreads: true, UseApplicationCommands: true,
       });
-      await interaction.editReply({ content: 'Salon déverrouillé.' });
+      await interaction.editReply({ content: 'Salon deverrouille.' });
     } catch (e) {
       console.error(e);
       await interaction.editReply({ content: 'Permission insuffisante.' });
@@ -184,12 +187,12 @@ client.on('interactionCreate', async interaction => {
   if (commandName === 'to') {
     await interaction.deferReply({ ephemeral: false });
     const member  = interaction.options.getMember('membre');
-    const seconds = parseInt(interaction.options.getString('durée'));
+    const seconds = parseInt(interaction.options.getString('duree'));
     const raison  = interaction.options.getString('raison') || 'Aucune raison';
     const labels  = { 60:'60 secondes', 300:'5 minutes', 600:'10 minutes', 3600:'1 heure', 86400:'1 jour', 604800:'1 semaine' };
     try {
       await member.timeout(seconds * 1000, raison);
-      await interaction.editReply({ content: `${member} a été to ${labels[seconds] || seconds + 's'}` });
+      await interaction.editReply({ content: `${member} a ete to ${labels[seconds] || seconds + 's'}` });
     } catch (e) {
       console.error(e);
       await interaction.editReply({ content: 'Impossible de timeout ce membre.' });
@@ -200,13 +203,13 @@ client.on('interactionCreate', async interaction => {
   if (commandName === 'giveaway') {
     await interaction.deferReply({ ephemeral: false });
     const prix    = interaction.options.getString('prix');
-    const seconds = parseInt(interaction.options.getString('durée'));
+    const seconds = parseInt(interaction.options.getString('duree'));
     const endTime = Date.now() + seconds * 1000;
 
     const btn = new ButtonBuilder().setCustomId('giveaway_join').setLabel('Participer').setStyle(ButtonStyle.Primary);
     const row = new ActionRowBuilder().addComponents(btn);
 
-    await interaction.editReply({ content: 'Giveaway lancé.' });
+    await interaction.editReply({ content: 'Giveaway lance.' });
     const msg = await interaction.channel.send({ embeds: [buildGiveawayEmbed(prix, endTime, 0)], components: [row] });
 
     giveaways.set(msg.id, { channelId: interaction.channel.id, prize: prix, endTime, participants: new Set() });
@@ -220,7 +223,7 @@ client.on('interactionCreate', async interaction => {
     const ping    = interaction.options.getString('ping') === 'oui';
 
     await interaction.editReply({
-      content: `Aperçu (ping: ${ping ? 'oui' : 'non'}) — envoi en cours...`,
+      content: `Apercu (ping: ${ping ? 'oui' : 'non'}) - envoi en cours...`,
       embeds: [new EmbedBuilder().setDescription(message).setColor(0x5865F2)],
     });
 
@@ -238,14 +241,13 @@ client.on('interactionCreate', async interaction => {
         });
         sent++;
       } catch { failed++; }
-      await sleep(1100); // anti-ratelimit
+      await sleep(1100);
     }
 
-    await interaction.followUp({ content: `Terminé. Envoyés : ${sent} | Echecs : ${failed}`, ephemeral: true });
+    await interaction.followUp({ content: `Termine. Envoyes : ${sent} | Echecs : ${failed}`, ephemeral: true });
   }
 });
 
-// ─── Giveaway helpers ─────────────────────────────────────────────────────────
 function buildGiveawayEmbed(prize, endTime, count) {
   return new EmbedBuilder()
     .setTitle('GIVEAWAY')
@@ -272,7 +274,10 @@ async function endGiveaway(messageId, guild) {
   const row = new ActionRowBuilder().addComponents(disabledBtn);
 
   if (participants.length === 0) {
-    await msgObj.edit({ embeds: [new EmbedBuilder().setTitle('GIVEAWAY TERMINE').setDescription(`Prix : ${gw.prize}\n\nAucun participant.`).setColor(0x2B2D31)], components: [row] }).catch(() => {});
+    await msgObj.edit({
+      embeds: [new EmbedBuilder().setTitle('GIVEAWAY TERMINE').setDescription(`Prix : ${gw.prize}\n\nAucun participant.`).setColor(0x2B2D31)],
+      components: [row],
+    }).catch(() => {});
     return;
   }
 
@@ -284,7 +289,6 @@ async function endGiveaway(messageId, guild) {
   await channel.send(`Felicitations <@${winnerId}> ! Tu remportes **${gw.prize}** !`);
 }
 
-// ─── Anti-spam ────────────────────────────────────────────────────────────────
 client.on('messageCreate', async message => {
   if (message.author.bot) return;
   if (message.author.id === OWNER_ID) return;
@@ -298,7 +302,7 @@ client.on('messageCreate', async message => {
   if (prev.length >= SPAM_LIMIT) {
     spamMap.set(message.author.id, []);
     try {
-      const warn = await message.channel.send(`${message.author} Vous écrivez des messages trop rapidement.`);
+      const warn = await message.channel.send(`${message.author} Vous ecrivez des messages trop rapidement.`);
       setTimeout(() => warn.delete().catch(() => {}), 3000);
     } catch {}
   }
