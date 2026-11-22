@@ -157,10 +157,7 @@ client.on('interactionCreate', async interaction => {
         totalDeleted++;
       }
     } catch (e) { console.error(e); }
-
     await interaction.editReply({ content: `✅ ${totalDeleted} message(s) supprimé(s).` });
-
-    // Image dans le salon, disparaît après 3 secondes
     const imgMsg = await interaction.channel.send({ files: [att('clear')] });
     setTimeout(() => imgMsg.delete().catch(() => {}), 3000);
   }
@@ -232,10 +229,8 @@ client.on('interactionCreate', async interaction => {
       .setStyle(ButtonStyle.Secondary);
     const row = new ActionRowBuilder().addComponents(btn);
 
-    // Réponse visible que pour l'admin
     await interaction.editReply({ content: '🎉 Giveaway lancé !' });
 
-    // Message public du giveaway
     const msg = await interaction.channel.send({
       files: [att('giveaway')],
       content: `🎉 **GIVEAWAY**\n**Prix :** ${prix}\n**Fin :** <t:${Math.floor(endTime / 1000)}:R>\n**Participants :** 0`,
