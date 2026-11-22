@@ -3,9 +3,11 @@ const {
   ButtonBuilder, ButtonStyle, ActionRowBuilder,
   EmbedBuilder, PermissionsBitField,
 } = require('discord.js');
+const fs = require('fs');
 require('dotenv').config();
 
 const GUILD_ID = process.env.GUILD_ID;
+const BL_FILE  = './blacklist.json'; // { userId: { roles: [roleId, ...] } }
 
 const client = new Client({
   intents: [
@@ -22,6 +24,14 @@ const spamMap    = new Map();
 const SPAM_LIMIT  = 5;
 const SPAM_WINDOW = 5000;
 const giveaways  = new Map();
+
+// --- Blacklist helpers ---
+function loadBL() {
+  try { return JSON.parse(fs.readFileSync(BL_FILE, 'utf8')); } catch { return {}; }
+}
+function saveBL(data) {
+  fs.writeFileSync(BL_FILE, JSON.stringify(data, null, 2));
+}
 
 const commands = [
   {
@@ -86,6 +96,23 @@ const commands = [
     ],
   },
   { name: 'renew', description: "Recree ce salon a l'identique", default_member_permissions: '8' },
+  {
+    name: 'bl',
+    description: 'Blacklist et ban un membre du serveur',
+    default_member_permissions: '8',
+    options: [
+      { name: 'membre', description: 'Membre a blacklist', type: 6, required: true },
+      { name: 'raison', description: 'Raison', type: 3, required: false },
+    ],
+  },
+  {
+    name: 'restaurer',
+    description: 'Retire un utilisateur de la blacklist et restaure ses roles a son retour',
+    default_member_permissions: '8',
+    options: [
+      { name: 'userid', description: 'ID de l\'utilisateur a restaurer', type: 3, required: true },
+    ],
+  },
 ];
 
 client.once('ready', async () => {
@@ -244,6 +271,74 @@ client.on('interactionCreate', async interaction => {
     await interaction.followUp({ content: `Envoyes : **${sent}** | Echecs : **${failed}**`, ephemeral: true });
   }
 
+  // /bl
+  if (commandName === 'bl') {
+    await interaction.deferReply({ ephemeral: true });
+    const member = interaction.options.getMember('membre');
+    const raison = interaction.options.getString('raison') || 'Aucune raison';
+
+    if (!member) {
+      return interaction.editReply({ content: 'Membre introuvable.' });
+    }
+
+    // Sauvegarder les roles (sauf @everyone)
+    const roles = member.roles.cache
+      .filter(r => r.id !== interaction.guild.id)
+      .map(r => r.id);
+
+    const bl = loadBL();
+    bl[member.id] = { roles, tag: member.user.tag };
+    saveBL(bl);
+
+    // Envoyer le DM avant le ban
+    try {
+      await member.send(`Vous avez ete blacklist du serveur **${interaction.guild.name}**.`);
+    } catch {}
+
+    // Ban
+    try {
+      await member.ban({ reason: raison });
+      await interaction.editReply({
+        content: `**${member.user.tag}** a ete blacklist et banni par **${executor.username}**.`,
+      });
+    } catch (e) {
+      console.error(e);
+      await interaction.editReply({ content: `Impossible de bannir ce membre : ${e.message}` });
+    }
+  }
+
+  // /restaurer
+  if (commandName === 'restaurer') {
+    await interaction.deferReply({ ephemeral: true });
+    const userId = interaction.options.getString('userid').trim();
+    const bl = loadBL();
+
+    if (!bl[userId]) {
+      return interaction.editReply({ content: 'Cet utilisateur n\'est pas dans la blacklist.' });
+    }
+
+    // Unban
+    try {
+      await interaction.guild.members.unban(userId, `Restaure par ${executor.username}`);
+    } catch (e) {
+      // Peut etre deja unban manuellement, on continue quand meme
+      console.error('Unban:', e.message);
+    }
+
+    const entry = bl[userId];
+    delete bl[userId];
+    saveBL(bl);
+
+    // Mettre les roles en attente de restauration
+    const pending = loadRestore();
+    pending[userId] = { roles: entry.roles, tag: entry.tag };
+    saveRestore(pending);
+
+    await interaction.editReply({
+      content: `**${entry.tag}** a ete retire de la blacklist par **${executor.username}**. Ses roles seront restaures automatiquement a son retour sur le serveur.`,
+    });
+  }
+
   // /renew
   if (commandName === 'renew') {
     await interaction.deferReply({ ephemeral: true });
@@ -329,6 +424,39 @@ async function endGiveaway(messageId, guild) {
   // Message d'annonce separe
   await channel.send(`Felicitations <@${winnerId}> ! Tu remportes **${gw.prize}** !`);
 }
+
+const RESTORE_FILE = './restore_pending.json';
+
+function loadRestore() {
+  try { return JSON.parse(fs.readFileSync(RESTORE_FILE, 'utf8')); } catch { return {}; }
+}
+function saveRestore(data) {
+  fs.writeFileSync(RESTORE_FILE, JSON.stringify(data, null, 2));
+}
+
+client.on('guildMemberAdd', async member => {
+  const bl = loadBL();
+
+  // Toujours blacklist : re-ban immediatement
+  if (bl[member.id]) {
+    try { await member.send(`Vous avez ete blacklist du serveur **${member.guild.name}**.`); } catch {}
+    await member.ban({ reason: 'Blacklist toujours active' }).catch(() => {});
+    return;
+  }
+
+  // Restauration en attente : redonner les roles
+  const pending = loadRestore();
+  if (!pending[member.id]) return;
+
+  const roleIds = pending[member.id].roles;
+  delete pending[member.id];
+  saveRestore(pending);
+
+  for (const roleId of roleIds) {
+    const role = member.guild.roles.cache.get(roleId);
+    if (role) await member.roles.add(role).catch(() => {});
+  }
+});
 
 // Anti-spam
 client.on('messageCreate', async message => {
