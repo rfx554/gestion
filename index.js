@@ -122,6 +122,7 @@ client.once('ready', async () => {
 
 client.on('interactionCreate', async interaction => {
 
+  // Bouton giveaway
   if (interaction.isButton() && interaction.customId === 'giveaway_join') {
     const gw = giveaways.get(interaction.message.id);
     if (!gw) return interaction.reply({ content: 'Ce giveaway est terminé.', ephemeral: true });
@@ -137,28 +138,27 @@ client.on('interactionCreate', async interaction => {
 
   const { commandName } = interaction;
 
-  // Helper : envoie le texte "X a utilisé /cmd" puis l'image
-  async function sendWithTag(cmdLabel, attName, extra = {}) {
-    await interaction.reply({ content: `-# ${interaction.user} a utilisé **/${cmdLabel}**`, ...extra });
-    await interaction.channel.send({ files: [att(attName)] });
-  }
-
   // /clear
   if (commandName === 'clear') {
-    await interaction.reply({ content: `-# ${interaction.user} a utilisé **/clear**`, ephemeral: false });
+    // Reply avec l'image — visible par tous, montre qui a utilisé la commande
+    await interaction.reply({ files: [att('clear')] });
     const nombre = Math.min(Math.max(interaction.options.getInteger('nombre'), 1), 100);
     const twoWeeksAgo = Date.now() - 14 * 24 * 60 * 60 * 1000;
     let totalDeleted = 0;
     try {
       const fetched = await interaction.channel.messages.fetch({ limit: nombre });
+      // Exclure le message de reply qu'on vient d'envoyer
       const replyMsg = await interaction.fetchReply();
       const recent = fetched.filter(m => m.createdTimestamp > twoWeeksAgo && m.id !== replyMsg.id);
       const old    = fetched.filter(m => m.createdTimestamp <= twoWeeksAgo && m.id !== replyMsg.id);
       if (recent.size > 0) await interaction.channel.bulkDelete(recent, true).then(d => totalDeleted += d.size);
       for (const msg of old.values()) { await msg.delete().catch(() => {}); totalDeleted++; }
     } catch (e) { console.error(e); }
-    const imgMsg = await interaction.channel.send({ files: [att('clear')] });
-    setTimeout(() => imgMsg.delete().catch(() => {}), 3000);
+    // Supprimer l'image après 3s
+    setTimeout(async () => {
+      const r = await interaction.fetchReply().catch(() => null);
+      if (r) r.delete().catch(() => {});
+    }, 3000);
   }
 
   // /lock
@@ -169,8 +169,8 @@ client.on('interactionCreate', async interaction => {
         SendMessagesInThreads: false, CreatePublicThreads: false,
         CreatePrivateThreads: false, UseApplicationCommands: false,
       });
-      await interaction.reply({ content: `-# ${interaction.user} a utilisé **/lock**` });
-      await interaction.channel.send({ files: [att('lock')] });
+      // Reply visible — affiche "X a utilisé /lock" + l'image
+      await interaction.reply({ files: [att('lock')] });
     } catch (e) {
       console.error(e);
       await interaction.reply({ content: 'Permission insuffisante.', ephemeral: true });
@@ -185,15 +185,14 @@ client.on('interactionCreate', async interaction => {
         SendMessagesInThreads: true, CreatePublicThreads: true,
         CreatePrivateThreads: true, UseApplicationCommands: true,
       });
-      await interaction.reply({ content: `-# ${interaction.user} a utilisé **/unlock**` });
-      await interaction.channel.send({ files: [att('unlock')] });
+      await interaction.reply({ files: [att('unlock')] });
     } catch (e) {
       console.error(e);
       await interaction.reply({ content: 'Permission insuffisante.', ephemeral: true });
     }
   }
 
-  // /to
+  // /to — message simple, pas d'image
   if (commandName === 'to') {
     const member  = interaction.options.getMember('membre');
     const seconds = parseInt(interaction.options.getString('duree'));
@@ -223,13 +222,13 @@ client.on('interactionCreate', async interaction => {
       .setStyle(ButtonStyle.Secondary);
     const row = new ActionRowBuilder().addComponents(btn);
 
-    await interaction.reply({ content: `-# ${interaction.user} a utilisé **/giveaway**` });
-    const msg = await interaction.channel.send({
+    await interaction.reply({
       files: [att('giveaway')],
       content: `🎉 **GIVEAWAY**\n**Prix :** ${prix}\n**Fin :** <t:${Math.floor(endTime / 1000)}:R>\n**Participants :** 0`,
       components: [row],
     });
 
+    const msg = await interaction.fetchReply();
     giveaways.set(msg.id, { channelId: interaction.channel.id, prize: prix, endTime, participants: new Set() });
     setTimeout(() => endGiveaway(msg.id, interaction.guild), seconds * 1000);
   }
@@ -239,6 +238,7 @@ client.on('interactionCreate', async interaction => {
     await interaction.deferReply({ ephemeral: true });
     const message = interaction.options.getString('message');
     const ping    = interaction.options.getString('ping') === 'oui';
+
     await interaction.editReply({ content: `📨 Envoi en cours...` });
 
     let members;
@@ -246,13 +246,18 @@ client.on('interactionCreate', async interaction => {
 
     const targets = members.filter(m => !m.user.bot);
     let sent = 0, failed = 0;
+
     for (const [, member] of targets) {
       try {
-        await member.send({ content: ping ? `${member}\n${message}` : message, files: [att('dmall')] });
+        await member.send({
+          content: ping ? `${member}\n${message}` : message,
+          files: [att('dmall')],
+        });
         sent++;
       } catch { failed++; }
       await sleep(1100);
     }
+
     await interaction.followUp({ content: `✅ Envoyés : **${sent}** | Échecs : **${failed}**`, ephemeral: true });
   }
 
@@ -261,21 +266,31 @@ client.on('interactionCreate', async interaction => {
     await interaction.deferReply({ ephemeral: true });
     const ch = interaction.channel;
     try {
-      const name = ch.name, topic = ch.topic || null, nsfw = ch.nsfw;
-      const position = ch.position, rateLimitPerUser = ch.rateLimitPerUser, parent = ch.parent;
-      const permOverwrites = ch.permissionOverwrites.cache.map(ow => ({
+      const name             = ch.name;
+      const topic            = ch.topic || null;
+      const nsfw             = ch.nsfw;
+      const position         = ch.position;
+      const rateLimitPerUser = ch.rateLimitPerUser;
+      const parent           = ch.parent;
+      const permOverwrites   = ch.permissionOverwrites.cache.map(ow => ({
         id: ow.id, type: ow.type, allow: ow.allow, deny: ow.deny,
       }));
+
       await ch.delete('renew command');
+
       const newChannel = await interaction.guild.channels.create({
         name, type: ch.type, topic, nsfw, rateLimitPerUser, parent,
-        permissionOverwrites: permOverwrites, reason: 'renew command',
+        permissionOverwrites: permOverwrites,
+        reason: 'renew command',
       });
+
       await newChannel.setPosition(position).catch(() => {});
       await newChannel.send({ files: [att('renew')] });
     } catch (e) {
       console.error(e);
-      try { await interaction.followUp({ content: `❌ Erreur : ${e.message}`, ephemeral: true }); } catch {}
+      try {
+        await interaction.followUp({ content: `❌ Erreur : ${e.message}`, ephemeral: true });
+      } catch {}
     }
   }
 });
@@ -293,16 +308,25 @@ async function endGiveaway(messageId, guild) {
   if (!channel) return;
   const participants = [...gw.participants];
   giveaways.delete(messageId);
+
   let msgObj;
   try { msgObj = await channel.messages.fetch(messageId); } catch { return; }
+
   const disabledBtn = new ButtonBuilder()
-    .setCustomId('giveaway_join').setLabel('🎉 Participer')
-    .setStyle(ButtonStyle.Secondary).setDisabled(true);
+    .setCustomId('giveaway_join')
+    .setLabel('🎉 Participer')
+    .setStyle(ButtonStyle.Secondary)
+    .setDisabled(true);
   const row = new ActionRowBuilder().addComponents(disabledBtn);
+
   if (participants.length === 0) {
-    await msgObj.edit({ content: `🎉 **GIVEAWAY TERMINÉ**\n**Prix :** ${gw.prize}\n\nAucun participant.`, components: [row] }).catch(() => {});
+    await msgObj.edit({
+      content: `🎉 **GIVEAWAY TERMINÉ**\n**Prix :** ${gw.prize}\n\nAucun participant.`,
+      components: [row],
+    }).catch(() => {});
     return;
   }
+
   const winnerId = participants[Math.floor(Math.random() * participants.length)];
   await msgObj.edit({
     content: `🎉 **GIVEAWAY TERMINÉ**\n**Prix :** ${gw.prize}\n**Gagnant :** <@${winnerId}>\n**Participants :** ${participants.length}`,
@@ -312,11 +336,14 @@ async function endGiveaway(messageId, guild) {
 }
 
 client.on('messageCreate', async message => {
-  if (message.author.bot || !message.guild) return;
-  const now = Date.now();
+  if (message.author.bot) return;
+  if (!message.guild) return;
+
+  const now  = Date.now();
   const prev = (spamMap.get(message.author.id) || []).filter(t => now - t < SPAM_WINDOW);
   prev.push(now);
   spamMap.set(message.author.id, prev);
+
   if (prev.length >= SPAM_LIMIT) {
     spamMap.set(message.author.id, []);
     try {
