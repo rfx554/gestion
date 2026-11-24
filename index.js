@@ -252,36 +252,35 @@ client.on('interactionCreate', async interaction => {
   const executor = interaction.user;
 
   // /clear
-  if (commandName === 'clear') {
-    await interaction.deferReply();
+ 
+// /clear
+if (commandName === 'clear') {
+  await interaction.deferReply({ ephemeral: true });
 
-    const nombre = Math.min(
-      Math.max(interaction.options.getInteger('nombre'), 1),
-      100
-    );
+  const nombre = Math.min(
+    Math.max(interaction.options.getInteger('nombre'), 1),
+    100
+  );
 
-    let totalDeleted = 0;
+  let totalDeleted = 0;
 
-    try {
-      const deleted = await interaction.channel.bulkDelete(nombre, true);
-      totalDeleted = deleted.size;
-    } catch (e) {
-      console.error(e);
-    }
-
-    await interaction.editReply({
-      content: `**${totalDeleted}** message(s) supprimé(s) par ${executor}.`,
-    });
-
-    // Supprime le message du bot après 3 secondes
-    setTimeout(async () => {
-      try {
-        await interaction.deleteReply();
-      } catch (e) {
-        console.error('Impossible de supprimer le message /clear :', e);
-      }
-    }, 3000);
+  try {
+    const deleted = await interaction.channel.bulkDelete(nombre, true);
+    totalDeleted = deleted.size;
+  } catch (e) {
+    console.error(e);
   }
+
+  await interaction.deleteReply().catch(() => {});
+
+  const confirmation = await interaction.channel.send({
+    content: `**${totalDeleted}** message(s) supprimé(s) par ${executor}.`
+  });
+
+  setTimeout(() => {
+    confirmation.delete().catch(() => {});
+  }, 3000);
+}
 
   // /lock
   if (commandName === 'lock') {
