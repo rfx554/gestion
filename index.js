@@ -15,7 +15,7 @@ require('dotenv').config();
 
 const GUILD_ID = process.env.GUILD_ID;
 const OWNER_ID = '1348347939474374786';
-const LOG_CHANNEL_ID = '1574910439111008286';
+const LOG_CHANNEL_ID = '1574930410842882068';
 
 const BL_FILE = './blacklist.json';
 const RESTORE_FILE = './restore_pending.json';
