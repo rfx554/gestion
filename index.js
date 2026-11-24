@@ -4,6 +4,7 @@ const {
   ButtonBuilder, ButtonStyle, ActionRowBuilder,
   EmbedBuilder,
 } = require('discord.js');
+
 const fs = require('fs');
 require('dotenv').config();
 
@@ -67,14 +68,8 @@ const commands = [
       },
     ],
   },
-  {
-    name: 'lock',
-    description: 'Verrouille le salon',
-  },
-  {
-    name: 'unlock',
-    description: 'Deverrouille le salon',
-  },
+  { name: 'lock', description: 'Verrouille le salon' },
+  { name: 'unlock', description: 'Deverrouille le salon' },
   {
     name: 'to',
     description: 'Exclure temporairement un membre',
@@ -250,7 +245,7 @@ client.on('interactionCreate', async interaction => {
 
   if (!interaction.isChatInputCommand()) return;
 
-  // SEUL CET UTILISATEUR PEUT UTILISER LES COMMANDES
+  // Seul cet utilisateur peut utiliser les commandes
   if (interaction.user.id !== OWNER_ID) return;
 
   const { commandName } = interaction;
@@ -268,19 +263,24 @@ client.on('interactionCreate', async interaction => {
     let totalDeleted = 0;
 
     try {
-      const deleted = await interaction.channel.bulkDelete(
-        nombre,
-        true
-      );
-
+      const deleted = await interaction.channel.bulkDelete(nombre, true);
       totalDeleted = deleted.size;
     } catch (e) {
       console.error(e);
     }
 
     await interaction.editReply({
-      content: `**${totalDeleted}** message(s) supprime(s) par ${executor}.`,
+      content: `**${totalDeleted}** message(s) supprimé(s) par ${executor}.`,
     });
+
+    // Supprime le message du bot après 3 secondes
+    setTimeout(async () => {
+      try {
+        await interaction.deleteReply();
+      } catch (e) {
+        console.error('Impossible de supprimer le message /clear :', e);
+      }
+    }, 3000);
   }
 
   // /lock
@@ -299,7 +299,7 @@ client.on('interactionCreate', async interaction => {
       );
 
       await interaction.reply({
-        content: `Ce salon a ete **ferme** par **${executor.username}**.`,
+        content: `Ce salon a été **fermé** par **${executor.username}**.`,
       });
     } catch (e) {
       console.error(e);
@@ -326,7 +326,7 @@ client.on('interactionCreate', async interaction => {
       );
 
       await interaction.reply({
-        content: `Ce salon a ete **ouvert** par **${executor.username}**.`,
+        content: `Ce salon a été **ouvert** par **${executor.username}**.`,
       });
     } catch (e) {
       console.error(e);
@@ -340,9 +340,7 @@ client.on('interactionCreate', async interaction => {
   // /to
   if (commandName === 'to') {
     const member = interaction.options.getMember('membre');
-    const seconds = parseInt(
-      interaction.options.getString('duree')
-    );
+    const seconds = parseInt(interaction.options.getString('duree'));
     const raison = interaction.options.getString('raison') || null;
 
     const labels = {
@@ -367,8 +365,8 @@ client.on('interactionCreate', async interaction => {
       );
 
       const txt = raison
-        ? `${member} a ete **TO** ${labels[seconds] || seconds + 's'} par ${executor} *(${raison})*`
-        : `${member} a ete **TO** ${labels[seconds] || seconds + 's'} par ${executor}`;
+        ? `${member} a été **TO** ${labels[seconds] || seconds + 's'} par ${executor} *(${raison})*`
+        : `${member} a été **TO** ${labels[seconds] || seconds + 's'} par ${executor}`;
 
       await interaction.reply({
         content: txt,
@@ -385,10 +383,7 @@ client.on('interactionCreate', async interaction => {
   // /giveaway
   if (commandName === 'giveaway') {
     const prix = interaction.options.getString('prix');
-    const seconds = parseInt(
-      interaction.options.getString('duree')
-    );
-
+    const seconds = parseInt(interaction.options.getString('duree'));
     const endTime = Date.now() + seconds * 1000;
 
     const btn = new ButtonBuilder()
@@ -468,7 +463,7 @@ client.on('interactionCreate', async interaction => {
     }
 
     await interaction.followUp({
-      content: `Envoyes : **${sent}** | Echecs : **${failed}**`,
+      content: `Envoyés : **${sent}** | Échecs : **${failed}**`,
     });
   }
 
@@ -502,7 +497,7 @@ client.on('interactionCreate', async interaction => {
     // Envoyer le DM avant le ban
     try {
       await member.send(
-        `Vous avez ete blacklist du serveur **${interaction.guild.name}**.`
+        `Vous avez été blacklist du serveur **${interaction.guild.name}**.`
       );
     } catch {}
 
@@ -513,7 +508,7 @@ client.on('interactionCreate', async interaction => {
       });
 
       await interaction.editReply({
-        content: `${member} a ete blacklist et banni par **${executor.username}**.`,
+        content: `${member} a été blacklist et banni par **${executor.username}**.`,
       });
     } catch (e) {
       console.error(e);
@@ -528,10 +523,7 @@ client.on('interactionCreate', async interaction => {
   if (commandName === 'restaurer') {
     await interaction.deferReply();
 
-    const userId = interaction.options
-      .getString('userid')
-      .trim();
-
+    const userId = interaction.options.getString('userid').trim();
     const bl = loadBL();
 
     if (!bl[userId]) {
@@ -544,7 +536,7 @@ client.on('interactionCreate', async interaction => {
     try {
       await interaction.guild.members.unban(
         userId,
-        `Restaure par ${executor.username}`
+        `Restauré par ${executor.username}`
       );
     } catch (e) {
       console.error('Unban:', e.message);
@@ -555,7 +547,7 @@ client.on('interactionCreate', async interaction => {
     delete bl[userId];
     saveBL(bl);
 
-    // Mettre les roles en attente
+    // Mettre les roles en attente de restauration
     const pending = loadRestore();
 
     pending[userId] = {
@@ -566,7 +558,7 @@ client.on('interactionCreate', async interaction => {
     saveRestore(pending);
 
     await interaction.editReply({
-      content: `**${entry.tag}** a ete retire de la blacklist par **${executor.username}**. Ses roles seront restaures automatiquement a son retour sur le serveur.`,
+      content: `**${entry.tag}** a été retiré de la blacklist par **${executor.username}**. Ses rôles seront restaurés automatiquement à son retour sur le serveur.`,
     });
   }
 
@@ -607,7 +599,7 @@ client.on('interactionCreate', async interaction => {
       await newChannel.setPosition(position).catch(() => {});
 
       await newChannel.send(
-        `Ce salon a ete **recree** par ${executor}.`
+        `Ce salon a été **recréé** par ${executor}.`
       );
     } catch (e) {
       console.error(e);
@@ -621,7 +613,7 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
-// --- Mise a jour giveaway ---
+// --- Mise à jour giveaway ---
 async function updateGiveawayMessage(message, gw) {
   const embed = new EmbedBuilder()
     .setTitle('🎊 GIVEAWAY')
@@ -659,6 +651,7 @@ async function endGiveaway(messageId, guild) {
     return;
   }
 
+  // Désactiver le bouton
   const disabledBtn = new ButtonBuilder()
     .setCustomId('giveaway_join')
     .setLabel('Participer')
@@ -672,7 +665,7 @@ async function endGiveaway(messageId, guild) {
       .setTitle('🎊 GIVEAWAY')
       .setDescription(
         `**Prix :** ${gw.prize}\n` +
-        `**Resultat :** Aucun participant.`
+        `**Résultat :** Aucun participant.`
       )
       .setColor(0x2b2d31);
 
@@ -703,19 +696,19 @@ async function endGiveaway(messageId, guild) {
   }).catch(() => {});
 
   await channel.send(
-    `Felicitations <@${winnerId}> ! Tu remportes **${gw.prize}** !`
+    `Félicitations <@${winnerId}> ! Tu remportes **${gw.prize}** !`
   );
 }
 
-// --- Arrivee d'un membre ---
+// --- Arrivée d'un membre ---
 client.on('guildMemberAdd', async member => {
   const bl = loadBL();
 
-  // Toujours blacklist : re-ban immediatement
+  // Toujours blacklist : re-ban immédiatement
   if (bl[member.id]) {
     try {
       await member.send(
-        `Vous avez ete blacklist du serveur **${member.guild.name}**.`
+        `Vous avez été blacklist du serveur **${member.guild.name}**.`
       );
     } catch {}
 
@@ -751,12 +744,10 @@ client.on('messageCreate', async message => {
 
   const now = Date.now();
 
-  const prev = (
-    spamMap.get(message.author.id) || []
-  ).filter(t => now - t < SPAM_WINDOW);
+  const prev = (spamMap.get(message.author.id) || [])
+    .filter(t => now - t < SPAM_WINDOW);
 
   prev.push(now);
-
   spamMap.set(message.author.id, prev);
 
   if (prev.length >= SPAM_LIMIT) {
@@ -780,5 +771,5 @@ function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// --- Connexion du bot ---
+// --- Connexion ---
 client.login(process.env.TOKEN);
