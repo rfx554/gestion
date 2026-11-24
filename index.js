@@ -17,10 +17,13 @@ const GUILD_ID = process.env.GUILD_ID;
 const OWNER_ID = '1348347939474374786';
 const LOG_CHANNEL_ID = '1574930410842882068';
 
+// ID du rôle requis pour participer aux giveaways
+const GIVEAWAY_ROLE_ID = process.env.GIVEAWAY_ROLE_ID || null; // mets l'ID ici ou dans .env
+
 const BL_FILE = './blacklist.json';
 const RESTORE_FILE = './restore_pending.json';
 
-const LOG_COLOR = 0x5865F2; // Bleu Discord de base
+const LOG_COLOR = 0x5865F2;
 
 const client = new Client({
   intents: [
@@ -37,6 +40,22 @@ const spamMap = new Map();
 const SPAM_LIMIT = 5;
 const SPAM_WINDOW = 5000;
 const giveaways = new Map();
+
+// =====================================
+// EMOJIS LOGS
+// =====================================
+
+const CMD_EMOJIS = {
+  clear:     '🗑️',
+  lock:      '🔒',
+  unlock:    '🔓',
+  to:        '⏳',
+  giveaway:  '🎊',
+  dmall:     '📨',
+  renew:     '♻️',
+  bl:        '🚫',
+  restaurer: '✅',
+};
 
 // =====================================
 // FICHIERS
@@ -76,8 +95,10 @@ async function sendCommandLog(interaction, extraFields = []) {
       return { name: option.name.charAt(0).toUpperCase() + option.name.slice(1), value: String(value), inline: true };
     });
 
+    const emoji = CMD_EMOJIS[interaction.commandName] || '🔔';
+
     const embed = new EmbedBuilder()
-      .setTitle(`${interaction.commandName} utilisé`)
+      .setTitle(`${emoji} ${interaction.commandName} utilisé`)
       .setColor(LOG_COLOR)
       .addFields(
         { name: 'Auteur', value: `<@${interaction.user.id}>`, inline: true },
@@ -96,7 +117,7 @@ async function sendCommandLog(interaction, extraFields = []) {
 }
 
 // =====================================
-// LOGS DES MESSAGES SUPPRIMES (embed)
+// LOGS DES MESSAGES SUPPRIMES
 // =====================================
 
 client.on('messageDelete', async message => {
@@ -112,7 +133,7 @@ client.on('messageDelete', async message => {
     if (content.length > 1024) content = content.slice(0, 1021) + '...';
 
     const embed = new EmbedBuilder()
-      .setTitle('Message supprimé')
+      .setTitle('🗑️ Message supprimé')
       .setColor(LOG_COLOR)
       .addFields(
         { name: 'Auteur', value: author, inline: true },
@@ -128,7 +149,7 @@ client.on('messageDelete', async message => {
   }
 });
 
-// Suppression en masse (/clear) — répond au log clear
+// Suppression en masse (/clear)
 client.on('messageDeleteBulk', async messages => {
   if (messages.size === 0) return;
   const firstMessage = messages.first();
@@ -139,12 +160,11 @@ client.on('messageDeleteBulk', async messages => {
     if (!logChannel || !logChannel.isTextBased()) return;
 
     const embed = new EmbedBuilder()
-      .setTitle(`${messages.size} messages supprimés en masse`)
+      .setTitle(`🗑️ ${messages.size} messages supprimés en masse`)
       .setColor(LOG_COLOR)
       .addFields({ name: 'Salon', value: `<#${firstMessage.channelId}>`, inline: true })
       .setTimestamp();
 
-    // Trouver le dernier log "clear utilisé" pour y répondre
     const logs = await logChannel.messages.fetch({ limit: 10 });
     const clearLog = logs.find(m =>
       m.author.id === client.user.id &&
@@ -204,6 +224,12 @@ const commands = [
           { name: '12 heures', value: '43200' }, { name: '1 jour', value: '86400' },
         ],
       },
+      {
+        name: 'role',
+        description: 'Rôle requis pour participer (optionnel)',
+        type: 8, // ROLE type
+        required: false,
+      },
     ],
   },
   {
@@ -259,11 +285,28 @@ client.on('interactionCreate', async interaction => {
 
   if (interaction.isButton() && interaction.customId === 'giveaway_join') {
     const gw = giveaways.get(interaction.message.id);
-    if (!gw) return interaction.reply({ content: 'Ce giveaway est terminé.', ephemeral: true });
-    if (gw.participants.has(interaction.user.id)) return interaction.reply({ content: 'Tu participes déjà !', ephemeral: true });
+    if (!gw) return interaction.reply({ content: '❌ Ce giveaway est terminé.', ephemeral: true });
+
+    // Vérification du rôle requis
+    if (gw.requiredRoleId) {
+      const member = interaction.member;
+      if (!member.roles.cache.has(gw.requiredRoleId)) {
+        const role = interaction.guild.roles.cache.get(gw.requiredRoleId);
+        const roleName = role ? role.name : 'requis';
+        return interaction.reply({
+          content: `❌ Tu dois avoir le rôle **${roleName}** pour participer à ce giveaway.`,
+          ephemeral: true,
+        });
+      }
+    }
+
+    if (gw.participants.has(interaction.user.id)) {
+      return interaction.reply({ content: '⚠️ Tu participes déjà !', ephemeral: true });
+    }
+
     gw.participants.add(interaction.user.id);
     await updateGiveawayMessage(interaction.message, gw);
-    return interaction.reply({ content: 'Tu participes au giveaway !', ephemeral: true });
+    return interaction.reply({ content: '✅ Tu participes au giveaway !', ephemeral: true });
   }
 
   if (!interaction.isChatInputCommand()) return;
@@ -278,8 +321,6 @@ client.on('interactionCreate', async interaction => {
 
   if (commandName === 'clear') {
     await interaction.deferReply({ ephemeral: true });
-
-    // Log AVANT la suppression pour y répondre ensuite via messageDeleteBulk
     await sendCommandLog(interaction);
 
     const nombre = Math.min(Math.max(interaction.options.getInteger('nombre'), 1), 100);
@@ -299,7 +340,6 @@ client.on('interactionCreate', async interaction => {
     return;
   }
 
-  // /renew gère ses propres logs (besoin du nom de l'ancien salon)
   if (commandName !== 'renew') {
     await sendCommandLog(interaction);
   }
@@ -370,19 +410,28 @@ client.on('interactionCreate', async interaction => {
   if (commandName === 'giveaway') {
     const prix = interaction.options.getString('prix');
     const seconds = parseInt(interaction.options.getString('duree'));
+    const requiredRole = interaction.options.getRole('role') || null;
     const endTime = Date.now() + seconds * 1000;
 
     const btn = new ButtonBuilder().setCustomId('giveaway_join').setLabel('Participer').setEmoji('🎉').setStyle(ButtonStyle.Secondary);
     const row = new ActionRowBuilder().addComponents(btn);
 
+    const conditionLine = requiredRole ? `**Condition :** Avoir le rôle <@&${requiredRole.id}>\n` : '';
+
     const embed = new EmbedBuilder()
       .setTitle('🎊 GIVEAWAY')
-      .setDescription(`**Prix :** ${prix}\n**Fin :** <t:${Math.floor(endTime / 1000)}:R>\n**Participants :** 0`)
+      .setDescription(`**Prix :** ${prix}\n${conditionLine}**Fin :** <t:${Math.floor(endTime / 1000)}:R>\n**Participants :** 0`)
       .setColor(0x2b2d31);
 
     await interaction.reply({ embeds: [embed], components: [row] });
     const msg = await interaction.fetchReply();
-    giveaways.set(msg.id, { channelId: interaction.channel.id, prize: prix, endTime, participants: new Set() });
+    giveaways.set(msg.id, {
+      channelId: interaction.channel.id,
+      prize: prix,
+      endTime,
+      participants: new Set(),
+      requiredRoleId: requiredRole ? requiredRole.id : null,
+    });
     setTimeout(() => endGiveaway(msg.id, interaction.guild), seconds * 1000);
   }
 
@@ -395,8 +444,7 @@ client.on('interactionCreate', async interaction => {
     const message = interaction.options.getString('message');
     const ping = interaction.options.getString('ping') === 'oui';
 
-    // Affiche "Envoi en cours..." en éditant la réponse initiale
-    await interaction.editReply({ content: 'Envoi en cours...' });
+    await interaction.editReply({ content: '📨 Envoi en cours...' });
 
     let members;
     try { members = await interaction.guild.members.fetch(); }
@@ -411,8 +459,7 @@ client.on('interactionCreate', async interaction => {
       await sleep(1100);
     }
 
-    // Modifie le même message au lieu d'en envoyer un nouveau
-    await interaction.editReply({ content: `Envoyés : **${sent}** | Échecs : **${failed}**` });
+    await interaction.editReply({ content: `📨 Envoyés : **${sent}** | Échecs : **${failed}**` });
   }
 
   // ===================================
@@ -436,7 +483,7 @@ client.on('interactionCreate', async interaction => {
 
     try {
       await member.ban({ reason: raison });
-      await interaction.editReply({ content: `${member} a été blacklist et banni par ${executor}.` });
+      await interaction.editReply({ content: `🚫 ${member} a été blacklist et banni par ${executor}.` });
     } catch (error) {
       console.error(error);
       await interaction.editReply({ content: `Impossible de bannir ce membre : ${error.message}` });
@@ -453,7 +500,7 @@ client.on('interactionCreate', async interaction => {
     const userId = interaction.options.getString('userid').trim();
     const bl = loadBL();
 
-    if (!bl[userId]) return interaction.editReply({ content: "Cet utilisateur n'est pas dans la blacklist." });
+    if (!bl[userId]) return interaction.editReply({ content: "❌ Cet utilisateur n'est pas dans la blacklist." });
 
     try { await interaction.guild.members.unban(userId, `Restauré par ${executor.username}`); }
     catch (error) { console.error('Unban:', error.message); }
@@ -467,7 +514,7 @@ client.on('interactionCreate', async interaction => {
     saveRestore(pending);
 
     await interaction.editReply({
-      content: `**${entry.tag}** a été retiré de la blacklist par ${executor}. Ses rôles seront restaurés automatiquement à son retour sur le serveur.`,
+      content: `✅ **${entry.tag}** a été retiré de la blacklist par ${executor}. Ses rôles seront restaurés automatiquement à son retour sur le serveur.`,
     });
   }
 
@@ -493,11 +540,10 @@ client.on('interactionCreate', async interaction => {
         id: ow.id, type: ow.type, allow: ow.allow, deny: ow.deny,
       }));
 
-      // Log avec le nom de l'ancien salon AVANT suppression
       const logChannel = await client.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
       if (logChannel && logChannel.isTextBased()) {
         const embed = new EmbedBuilder()
-          .setTitle('renew utilisé')
+          .setTitle('♻️ renew utilisé')
           .setColor(LOG_COLOR)
           .addFields(
             { name: 'Auteur', value: `<@${executor.id}>`, inline: true },
@@ -515,7 +561,7 @@ client.on('interactionCreate', async interaction => {
       });
 
       await newChannel.setPosition(position).catch(() => {});
-      await newChannel.send(`Ce salon a été **recréé** par ${executor}.`);
+      await newChannel.send(`♻️ Ce salon a été **recréé** par ${executor}.`);
 
     } catch (error) {
       console.error(error);
@@ -529,9 +575,10 @@ client.on('interactionCreate', async interaction => {
 // =====================================
 
 async function updateGiveawayMessage(message, gw) {
+  const conditionLine = gw.requiredRoleId ? `**Condition :** Avoir le rôle <@&${gw.requiredRoleId}>\n` : '';
   const embed = new EmbedBuilder()
     .setTitle('🎊 GIVEAWAY')
-    .setDescription(`**Prix :** ${gw.prize}\n**Fin :** <t:${Math.floor(gw.endTime / 1000)}:R>\n**Participants :** ${gw.participants.size}`)
+    .setDescription(`**Prix :** ${gw.prize}\n${conditionLine}**Fin :** <t:${Math.floor(gw.endTime / 1000)}:R>\n**Participants :** ${gw.participants.size}`)
     .setColor(0x2b2d31);
   await message.edit({ embeds: [embed] }).catch(() => {});
 }
@@ -574,7 +621,7 @@ async function endGiveaway(messageId, guild) {
     .setColor(0x2b2d31);
 
   await msgObj.edit({ embeds: [embedFin], components: [row] }).catch(() => {});
-  await channel.send(`Félicitations <@${winnerId}> ! Tu remportes **${gw.prize}** !`);
+  await channel.send(`🎉 Félicitations <@${winnerId}> ! Tu remportes **${gw.prize}** !`);
 }
 
 // =====================================
@@ -618,7 +665,7 @@ client.on('messageCreate', async message => {
   if (prev.length >= SPAM_LIMIT) {
     spamMap.set(message.author.id, []);
     try {
-      const warn = await message.channel.send(`${message.author} Tu envoies des messages trop rapidement.`);
+      const warn = await message.channel.send(`⚠️ ${message.author} Tu envoies des messages trop rapidement.`);
       setTimeout(() => warn.delete().catch(() => {}), 4000);
     } catch {}
   }
