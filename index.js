@@ -228,9 +228,19 @@ const commands = [
         ],
       },
       {
+        name: 'condition',
+        description: 'Y a-t-il une condition de rôle pour participer ?',
+        type: 3,
+        required: true,
+        choices: [
+          { name: 'Aucune condition', value: 'non' },
+          { name: 'Rôle requis', value: 'oui' },
+        ],
+      },
+      {
         name: 'role',
-        description: 'Rôle requis pour participer (optionnel)',
-        type: 8, // ROLE type
+        description: 'Rôle requis (uniquement si condition = Rôle requis)',
+        type: 8,
         required: false,
       },
     ],
@@ -413,17 +423,24 @@ client.on('interactionCreate', async interaction => {
   if (commandName === 'giveaway') {
     const prix = interaction.options.getString('prix');
     const seconds = parseInt(interaction.options.getString('duree'));
-    const requiredRole = interaction.options.getRole('role') || null;
+    const condition = interaction.options.getString('condition');
+    const requiredRole = condition === 'oui' ? (interaction.options.getRole('role') || null) : null;
     const endTime = Date.now() + seconds * 1000;
+
+    if (condition === 'oui' && !requiredRole) {
+      return interaction.reply({ content: '❌ Tu as sélectionné "Rôle requis" mais tu n\'as pas renseigné de rôle.', ephemeral: true });
+    }
 
     const btn = new ButtonBuilder().setCustomId('giveaway_join').setLabel('Participer').setEmoji('🎉').setStyle(ButtonStyle.Secondary);
     const row = new ActionRowBuilder().addComponents(btn);
 
-    const conditionLine = requiredRole ? `**Condition :** Avoir le rôle <@&${requiredRole.id}>\n` : '';
+    const conditionLine = requiredRole
+      ? `**Condition :** <@&${requiredRole.id}>`
+      : `**Condition :** Aucune`;
 
     const embed = new EmbedBuilder()
       .setTitle('🎊 GIVEAWAY')
-      .setDescription(`**Prix :** ${prix}\n${conditionLine}**Fin :** <t:${Math.floor(endTime / 1000)}:R>\n**Participants :** 0`)
+      .setDescription(`**Prix :** ${prix}\n${conditionLine}\n**Fin :** <t:${Math.floor(endTime / 1000)}:R>\n**Participants :** 0`)
       .setColor(0x2b2d31);
 
     await interaction.reply({ embeds: [embed], components: [row] });
@@ -578,10 +595,12 @@ client.on('interactionCreate', async interaction => {
 // =====================================
 
 async function updateGiveawayMessage(message, gw) {
-  const conditionLine = gw.requiredRoleId ? `**Condition :** Avoir le rôle <@&${gw.requiredRoleId}>\n` : '';
+  const conditionLine = gw.requiredRoleId
+    ? `**Condition :** <@&${gw.requiredRoleId}>`
+    : `**Condition :** Aucune`;
   const embed = new EmbedBuilder()
     .setTitle('🎊 GIVEAWAY')
-    .setDescription(`**Prix :** ${gw.prize}\n${conditionLine}**Fin :** <t:${Math.floor(gw.endTime / 1000)}:R>\n**Participants :** ${gw.participants.size}`)
+    .setDescription(`**Prix :** ${gw.prize}\n${conditionLine}\n**Fin :** <t:${Math.floor(gw.endTime / 1000)}:R>\n**Participants :** ${gw.participants.size}`)
     .setColor(0x2b2d31);
   await message.edit({ embeds: [embed] }).catch(() => {});
 }
