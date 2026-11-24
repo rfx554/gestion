@@ -15,10 +15,12 @@ require('dotenv').config();
 
 const GUILD_ID = process.env.GUILD_ID;
 const OWNER_ID = '1348347939474374786';
-const LOG_CHANNEL_ID = '1574930410842882068';
+const LOG_CHANNEL_ID = '1574910439111008286';
 
 const BL_FILE = './blacklist.json';
 const RESTORE_FILE = './restore_pending.json';
+
+const LOG_COLOR = 0x5865F2; // Bleu Discord de base
 
 const client = new Client({
   intents: [
@@ -28,33 +30,13 @@ const client = new Client({
     GatewayIntentBits.GuildMembers,
     GatewayIntentBits.DirectMessages,
   ],
-  partials: [
-    Partials.Message,
-    Partials.Channel,
-    Partials.User,
-  ],
+  partials: [Partials.Message, Partials.Channel, Partials.User],
 });
 
 const spamMap = new Map();
 const SPAM_LIMIT = 5;
 const SPAM_WINDOW = 5000;
 const giveaways = new Map();
-
-// =====================================
-// COULEURS & EMOJIS PAR COMMANDE
-// =====================================
-
-const CMD_META = {
-  clear:     { color: 0xED4245, emoji: '🗑️' },
-  lock:      { color: 0xFEE75C, emoji: '🔒' },
-  unlock:    { color: 0x57F287, emoji: '🔓' },
-  to:        { color: 0xEB459E, emoji: '⏱️' },
-  giveaway:  { color: 0x5865F2, emoji: '🎊' },
-  dmall:     { color: 0x57F287, emoji: '📨' },
-  renew:     { color: 0xFAA61A, emoji: '♻️' },
-  bl:        { color: 0xED4245, emoji: '🚫' },
-  restaurer: { color: 0x57F287, emoji: '✅' },
-};
 
 // =====================================
 // FICHIERS
@@ -80,8 +62,6 @@ async function sendCommandLog(interaction, extraFields = []) {
     const channel = await client.channels.fetch(LOG_CHANNEL_ID);
     if (!channel || !channel.isTextBased()) return null;
 
-    const meta = CMD_META[interaction.commandName] || { color: 0x99AAB5, emoji: '🔔' };
-
     const details = interaction.options.data.map(option => {
       let value = option.value;
       if (option.type === 6) value = `<@${option.value}>`;
@@ -97,8 +77,8 @@ async function sendCommandLog(interaction, extraFields = []) {
     });
 
     const embed = new EmbedBuilder()
-      .setTitle(`${meta.emoji} /${interaction.commandName} utilisé`)
-      .setColor(meta.color)
+      .setTitle(`${interaction.commandName} utilisé`)
+      .setColor(LOG_COLOR)
       .addFields(
         { name: 'Auteur', value: `<@${interaction.user.id}>`, inline: true },
         ...details,
@@ -132,8 +112,8 @@ client.on('messageDelete', async message => {
     if (content.length > 1024) content = content.slice(0, 1021) + '...';
 
     const embed = new EmbedBuilder()
-      .setTitle('🗑️ Message supprimé')
-      .setColor(0xED4245)
+      .setTitle('Message supprimé')
+      .setColor(LOG_COLOR)
       .addFields(
         { name: 'Auteur', value: author, inline: true },
         { name: 'Salon', value: `<#${message.channelId}>`, inline: true },
@@ -148,7 +128,7 @@ client.on('messageDelete', async message => {
   }
 });
 
-// Suppression en masse (/clear) — répond au log /clear
+// Suppression en masse (/clear) — répond au log clear
 client.on('messageDeleteBulk', async messages => {
   if (messages.size === 0) return;
   const firstMessage = messages.first();
@@ -159,16 +139,16 @@ client.on('messageDeleteBulk', async messages => {
     if (!logChannel || !logChannel.isTextBased()) return;
 
     const embed = new EmbedBuilder()
-      .setTitle(`🗑️ ${messages.size} messages supprimés en masse`)
-      .setColor(0xED4245)
+      .setTitle(`${messages.size} messages supprimés en masse`)
+      .setColor(LOG_COLOR)
       .addFields({ name: 'Salon', value: `<#${firstMessage.channelId}>`, inline: true })
       .setTimestamp();
 
-    // Trouver le dernier log /clear pour y répondre
+    // Trouver le dernier log "clear utilisé" pour y répondre
     const logs = await logChannel.messages.fetch({ limit: 10 });
     const clearLog = logs.find(m =>
       m.author.id === client.user.id &&
-      m.embeds[0]?.title?.includes('/clear')
+      m.embeds[0]?.title?.includes('clear')
     );
 
     if (clearLog) {
@@ -368,7 +348,6 @@ client.on('interactionCreate', async interaction => {
     const member = interaction.options.getMember('membre');
     const seconds = parseInt(interaction.options.getString('duree'));
     const raison = interaction.options.getString('raison') || null;
-
     const labels = { 60: '60 secondes', 300: '5 minutes', 600: '10 minutes', 3600: '1 heure', 86400: '1 jour', 604800: '1 semaine' };
 
     try {
@@ -416,6 +395,7 @@ client.on('interactionCreate', async interaction => {
     const message = interaction.options.getString('message');
     const ping = interaction.options.getString('ping') === 'oui';
 
+    // Affiche "Envoi en cours..." en éditant la réponse initiale
     await interaction.editReply({ content: 'Envoi en cours...' });
 
     let members;
@@ -431,7 +411,8 @@ client.on('interactionCreate', async interaction => {
       await sleep(1100);
     }
 
-    await interaction.followUp({ content: `Envoyés : **${sent}** | Échecs : **${failed}**` });
+    // Modifie le même message au lieu d'en envoyer un nouveau
+    await interaction.editReply({ content: `Envoyés : **${sent}** | Échecs : **${failed}**` });
   }
 
   // ===================================
@@ -515,10 +496,9 @@ client.on('interactionCreate', async interaction => {
       // Log avec le nom de l'ancien salon AVANT suppression
       const logChannel = await client.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
       if (logChannel && logChannel.isTextBased()) {
-        const meta = CMD_META['renew'];
         const embed = new EmbedBuilder()
-          .setTitle(`${meta.emoji} /renew utilisé`)
-          .setColor(meta.color)
+          .setTitle('renew utilisé')
+          .setColor(LOG_COLOR)
           .addFields(
             { name: 'Auteur', value: `<@${executor.id}>`, inline: true },
             { name: 'Salon recréé', value: `#${oldChannelName}`, inline: true },
