@@ -1,7 +1,13 @@
 
 const {
-  Client, GatewayIntentBits, Partials, REST, Routes,
-  ButtonBuilder, ButtonStyle, ActionRowBuilder,
+  Client,
+  GatewayIntentBits,
+  Partials,
+  REST,
+  Routes,
+  ButtonBuilder,
+  ButtonStyle,
+  ActionRowBuilder,
   EmbedBuilder,
 } = require('discord.js');
 
@@ -10,6 +16,8 @@ require('dotenv').config();
 
 const GUILD_ID = process.env.GUILD_ID;
 const OWNER_ID = '1348347939474374786';
+const LOG_CHANNEL_ID = '1574910439111008286';
+
 const BL_FILE = './blacklist.json';
 const RESTORE_FILE = './restore_pending.json';
 
@@ -29,7 +37,10 @@ const SPAM_LIMIT = 5;
 const SPAM_WINDOW = 5000;
 const giveaways = new Map();
 
-// --- Blacklist helpers ---
+// ==============================
+// BLACKLIST HELPERS
+// ==============================
+
 function loadBL() {
   try {
     return JSON.parse(fs.readFileSync(BL_FILE, 'utf8'));
@@ -54,7 +65,81 @@ function saveRestore(data) {
   fs.writeFileSync(RESTORE_FILE, JSON.stringify(data, null, 2));
 }
 
-// --- Commandes ---
+// ==============================
+// LOGS
+// ==============================
+
+async function sendCommandLog(interaction) {
+  try {
+    const channel = await client.channels.fetch(LOG_CHANNEL_ID);
+
+    if (!channel || !channel.isTextBased()) return;
+
+    const commandName = interaction.commandName;
+
+    const details = interaction.options.data.map(option => {
+      let value = option.value;
+
+      if (option.type === 6) {
+        value = `<@${option.value}>`;
+      }
+
+      if (option.name === 'duree' && value) {
+        const seconds = parseInt(value);
+
+        const labels = {
+          60: '60 secondes',
+          300: '5 minutes',
+          600: '10 minutes',
+          3600: '1 heure',
+          86400: '1 jour',
+          604800: '1 semaine',
+          1800: '30 minutes',
+          21600: '6 heures',
+          43200: '12 heures',
+        };
+
+        value = labels[seconds] || `${seconds} secondes`;
+      }
+
+      return `**${option.name.charAt(0).toUpperCase() + option.name.slice(1)}**\n${value}`;
+    });
+
+    const embed = new EmbedBuilder()
+      .setTitle(`🔔 /${commandName} utilisé`)
+      .addFields(
+        {
+          name: 'Auteur',
+          value: `<@${interaction.user.id}>`,
+          inline: false,
+        },
+        {
+          name: 'Salon',
+          value: `<#${interaction.channelId}>`,
+          inline: false,
+        },
+        {
+          name: 'Détails',
+          value: details.length ? details.join('\n\n') : 'Aucun détail',
+          inline: false,
+        }
+      )
+      .setColor(0xFAA61A)
+      .setTimestamp();
+
+    await channel.send({
+      embeds: [embed],
+    });
+
+  } catch (error) {
+    console.error('Erreur logs :', error);
+  }
+}
+
+// ==============================
+// COMMANDES
+// ==============================
+
 const commands = [
   {
     name: 'clear',
@@ -68,8 +153,14 @@ const commands = [
       },
     ],
   },
-  { name: 'lock', description: 'Verrouille le salon' },
-  { name: 'unlock', description: 'Deverrouille le salon' },
+  {
+    name: 'lock',
+    description: 'Verrouille le salon',
+  },
+  {
+    name: 'unlock',
+    description: 'Deverrouille le salon',
+  },
   {
     name: 'to',
     description: 'Exclure temporairement un membre',
@@ -188,7 +279,10 @@ const commands = [
   },
 ];
 
-// --- Connexion ---
+// ==============================
+// READY
+// ==============================
+
 client.once('ready', async () => {
   console.log(`Connecte : ${client.user.tag}`);
 
@@ -207,12 +301,15 @@ client.once('ready', async () => {
     );
 
     console.log('Commandes enregistrees.');
-  } catch (e) {
-    console.error(e);
+  } catch (error) {
+    console.error(error);
   }
 });
 
-// --- Interactions ---
+// ==============================
+// INTERACTIONS
+// ==============================
+
 client.on('interactionCreate', async interaction => {
 
   // Bouton giveaway
@@ -251,38 +348,45 @@ client.on('interactionCreate', async interaction => {
   const { commandName } = interaction;
   const executor = interaction.user;
 
+  // Enregistrer chaque utilisation dans les logs
+  await sendCommandLog(interaction);
+
+  // ==============================
   // /clear
- 
-// /clear
-if (commandName === 'clear') {
-  await interaction.deferReply({ ephemeral: true });
+  // ==============================
 
-  const nombre = Math.min(
-    Math.max(interaction.options.getInteger('nombre'), 1),
-    100
-  );
+  if (commandName === 'clear') {
+    await interaction.deferReply({ ephemeral: true });
 
-  let totalDeleted = 0;
+    const nombre = Math.min(
+      Math.max(interaction.options.getInteger('nombre'), 1),
+      100
+    );
 
-  try {
-    const deleted = await interaction.channel.bulkDelete(nombre, true);
-    totalDeleted = deleted.size;
-  } catch (e) {
-    console.error(e);
+    let totalDeleted = 0;
+
+    try {
+      const deleted = await interaction.channel.bulkDelete(nombre, true);
+      totalDeleted = deleted.size;
+    } catch (error) {
+      console.error(error);
+    }
+
+    await interaction.deleteReply().catch(() => {});
+
+    const confirmation = await interaction.channel.send({
+      content: `**${totalDeleted}** message(s) supprimé(s) par ${executor}.`,
+    });
+
+    setTimeout(() => {
+      confirmation.delete().catch(() => {});
+    }, 3000);
   }
 
-  await interaction.deleteReply().catch(() => {});
-
-  const confirmation = await interaction.channel.send({
-    content: `**${totalDeleted}** message(s) supprimé(s) par ${executor}.`
-  });
-
-  setTimeout(() => {
-    confirmation.delete().catch(() => {});
-  }, 3000);
-}
-
+  // ==============================
   // /lock
+  // ==============================
+
   if (commandName === 'lock') {
     try {
       await interaction.channel.permissionOverwrites.edit(
@@ -300,8 +404,8 @@ if (commandName === 'clear') {
       await interaction.reply({
         content: `Ce salon a été **fermé** par **${executor.username}**.`,
       });
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
 
       await interaction.reply({
         content: 'Permission insuffisante.',
@@ -309,7 +413,10 @@ if (commandName === 'clear') {
     }
   }
 
+  // ==============================
   // /unlock
+  // ==============================
+
   if (commandName === 'unlock') {
     try {
       await interaction.channel.permissionOverwrites.edit(
@@ -327,8 +434,8 @@ if (commandName === 'clear') {
       await interaction.reply({
         content: `Ce salon a été **ouvert** par **${executor.username}**.`,
       });
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
 
       await interaction.reply({
         content: 'Permission insuffisante.',
@@ -336,7 +443,10 @@ if (commandName === 'clear') {
     }
   }
 
+  // ==============================
   // /to
+  // ==============================
+
   if (commandName === 'to') {
     const member = interaction.options.getMember('membre');
     const seconds = parseInt(interaction.options.getString('duree'));
@@ -370,8 +480,8 @@ if (commandName === 'clear') {
       await interaction.reply({
         content: txt,
       });
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
 
       await interaction.reply({
         content: 'Impossible de timeout ce membre.',
@@ -379,10 +489,14 @@ if (commandName === 'clear') {
     }
   }
 
+  // ==============================
   // /giveaway
+  // ==============================
+
   if (commandName === 'giveaway') {
     const prix = interaction.options.getString('prix');
     const seconds = parseInt(interaction.options.getString('duree'));
+
     const endTime = Date.now() + seconds * 1000;
 
     const btn = new ButtonBuilder()
@@ -422,7 +536,10 @@ if (commandName === 'clear') {
     );
   }
 
+  // ==============================
   // /dmall
+  // ==============================
+
   if (commandName === 'dmall') {
     await interaction.deferReply();
 
@@ -437,8 +554,8 @@ if (commandName === 'clear') {
 
     try {
       members = await interaction.guild.members.fetch();
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
       return;
     }
 
@@ -466,7 +583,10 @@ if (commandName === 'clear') {
     });
   }
 
+  // ==============================
   // /bl
+  // ==============================
+
   if (commandName === 'bl') {
     await interaction.deferReply();
 
@@ -479,7 +599,7 @@ if (commandName === 'clear') {
       });
     }
 
-    // Sauvegarder les roles sauf @everyone
+    // Sauvegarder les rôles sauf @everyone
     const roles = member.roles.cache
       .filter(r => r.id !== interaction.guild.id)
       .map(r => r.id);
@@ -500,7 +620,6 @@ if (commandName === 'clear') {
       );
     } catch {}
 
-    // Ban
     try {
       await member.ban({
         reason: raison,
@@ -509,16 +628,19 @@ if (commandName === 'clear') {
       await interaction.editReply({
         content: `${member} a été blacklist et banni par **${executor.username}**.`,
       });
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
 
       await interaction.editReply({
-        content: `Impossible de bannir ce membre : ${e.message}`,
+        content: `Impossible de bannir ce membre : ${error.message}`,
       });
     }
   }
 
+  // ==============================
   // /restaurer
+  // ==============================
+
   if (commandName === 'restaurer') {
     await interaction.deferReply();
 
@@ -531,14 +653,13 @@ if (commandName === 'clear') {
       });
     }
 
-    // Unban
     try {
       await interaction.guild.members.unban(
         userId,
         `Restauré par ${executor.username}`
       );
-    } catch (e) {
-      console.error('Unban:', e.message);
+    } catch (error) {
+      console.error('Unban:', error.message);
     }
 
     const entry = bl[userId];
@@ -546,7 +667,6 @@ if (commandName === 'clear') {
     delete bl[userId];
     saveBL(bl);
 
-    // Mettre les roles en attente de restauration
     const pending = loadRestore();
 
     pending[userId] = {
@@ -561,7 +681,10 @@ if (commandName === 'clear') {
     });
   }
 
+  // ==============================
   // /renew
+  // ==============================
+
   if (commandName === 'renew') {
     await interaction.deferReply();
 
@@ -600,19 +723,22 @@ if (commandName === 'clear') {
       await newChannel.send(
         `Ce salon a été **recréé** par ${executor}.`
       );
-    } catch (e) {
-      console.error(e);
+    } catch (error) {
+      console.error(error);
 
       try {
         await interaction.followUp({
-          content: `Erreur : ${e.message}`,
+          content: `Erreur : ${error.message}`,
         });
       } catch {}
     }
   }
 });
 
-// --- Mise à jour giveaway ---
+// ==============================
+// GIVEAWAY UPDATE
+// ==============================
+
 async function updateGiveawayMessage(message, gw) {
   const embed = new EmbedBuilder()
     .setTitle('🎊 GIVEAWAY')
@@ -628,7 +754,10 @@ async function updateGiveawayMessage(message, gw) {
   }).catch(() => {});
 }
 
-// --- Fin giveaway ---
+// ==============================
+// GIVEAWAY END
+// ==============================
+
 async function endGiveaway(messageId, guild) {
   const gw = giveaways.get(messageId);
 
@@ -650,7 +779,6 @@ async function endGiveaway(messageId, guild) {
     return;
   }
 
-  // Désactiver le bouton
   const disabledBtn = new ButtonBuilder()
     .setCustomId('giveaway_join')
     .setLabel('Participer')
@@ -699,11 +827,13 @@ async function endGiveaway(messageId, guild) {
   );
 }
 
-// --- Arrivée d'un membre ---
+// ==============================
+// ARRIVEE MEMBRE
+// ==============================
+
 client.on('guildMemberAdd', async member => {
   const bl = loadBL();
 
-  // Toujours blacklist : re-ban immédiatement
   if (bl[member.id]) {
     try {
       await member.send(
@@ -718,7 +848,6 @@ client.on('guildMemberAdd', async member => {
     return;
   }
 
-  // Restauration en attente
   const pending = loadRestore();
 
   if (!pending[member.id]) return;
@@ -737,7 +866,10 @@ client.on('guildMemberAdd', async member => {
   }
 });
 
-// --- Anti-spam ---
+// ==============================
+// ANTI-SPAM
+// ==============================
+
 client.on('messageCreate', async message => {
   if (message.author.bot || !message.guild) return;
 
@@ -765,10 +897,16 @@ client.on('messageCreate', async message => {
   }
 });
 
-// --- Sleep ---
+// ==============================
+// SLEEP
+// ==============================
+
 function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// --- Connexion ---
+// ==============================
+// LOGIN
+// ==============================
+
 client.login(process.env.TOKEN);
