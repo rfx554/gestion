@@ -81,19 +81,22 @@ async function sendCommandLog(interaction, extraFields = []) {
     const channel = await client.channels.fetch(LOG_CHANNEL_ID);
     if (!channel || !channel.isTextBased()) return null;
 
-    const details = interaction.options.data.map(option => {
-      let value = option.value;
-      if (option.type === 6) value = `<@${option.value}>`;
-      if (option.name === 'duree' && value) {
-        const labels = {
-          60: '60 secondes', 300: '5 minutes', 600: '10 minutes',
-          1800: '30 minutes', 3600: '1 heure', 21600: '6 heures',
-          43200: '12 heures', 86400: '1 jour', 604800: '1 semaine',
-        };
-        value = labels[parseInt(value)] || `${value} secondes`;
-      }
-      return { name: option.name.charAt(0).toUpperCase() + option.name.slice(1), value: String(value), inline: true };
-    });
+    const details = interaction.options.data
+      .filter(option => option.value !== null && option.value !== undefined)
+      .map(option => {
+        let value = option.value;
+        if (option.type === 6) value = `<@${option.value}>`;
+        if (option.type === 8) value = `<@&${option.value}>`;
+        if (option.name === 'duree' && value) {
+          const labels = {
+            60: '60 secondes', 300: '5 minutes', 600: '10 minutes',
+            1800: '30 minutes', 3600: '1 heure', 21600: '6 heures',
+            43200: '12 heures', 86400: '1 jour', 604800: '1 semaine',
+          };
+          value = labels[parseInt(value)] || `${value} secondes`;
+        }
+        return { name: option.name.charAt(0).toUpperCase() + option.name.slice(1), value: String(value), inline: true };
+      });
 
     const emoji = CMD_EMOJIS[interaction.commandName] || '🔔';
 
