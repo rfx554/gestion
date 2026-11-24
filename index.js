@@ -668,6 +668,41 @@ client.on('messageCreate', async message => {
       const warn = await message.channel.send(`⚠️ ${message.author} Tu envoies des messages trop rapidement.`);
       setTimeout(() => warn.delete().catch(() => {}), 4000);
     } catch {}
+
+    // DM au owner
+    try {
+      const owner = await client.users.fetch(OWNER_ID);
+      const dmChannel = await owner.createDM();
+
+      // Récupère les derniers messages du spammeur dans ce salon
+      const fetched = await message.channel.messages.fetch({ limit: 20 }).catch(() => null);
+      let resume = 'Aucun message récupérable.';
+      if (fetched) {
+        const spamMsgs = fetched
+          .filter(m => m.author.id === message.author.id)
+          .map(m => m.content || '[contenu vide]')
+          .slice(0, 5)
+          .reverse();
+        if (spamMsgs.length > 0) resume = spamMsgs.join('\n');
+      }
+      if (resume.length > 1000) resume = resume.slice(0, 997) + '...';
+
+      const embed = new EmbedBuilder()
+        .setTitle('Spam détecté')
+        .setColor(0xED4245)
+        .addFields(
+          { name: 'Membre', value: `<@${message.author.id}> (${message.author.tag})` },
+          { name: 'Salon', value: `<#${message.channelId}>` },
+          { name: 'Messages envoyés', value: resume },
+          { name: 'Date', value: `<t:${Math.floor(Date.now() / 1000)}:F>` },
+        )
+        .setThumbnail(message.author.displayAvatarURL({ dynamic: true }))
+        .setTimestamp();
+
+      await dmChannel.send({ content: `<@${OWNER_ID}>`, embeds: [embed] });
+    } catch (err) {
+      console.error('Erreur DM owner spam :', err);
+    }
   }
 });
 
