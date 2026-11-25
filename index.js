@@ -16,7 +16,12 @@ require('dotenv').config();
 const GUILD_ID = process.env.GUILD_ID;
 const OWNER_ID = '1348347939474374786';
 const LOG_CHANNEL_ID = '1574930410842882068';
-const EXCLUDED_CHANNELS = ['1574899155581542572', '1574930410842882068'];
+const GHOST_PING_CHANNELS = [
+  '1574944174233493676',
+  '1574934140086648914',
+  '1574930019552338161',
+  '1574950586242179242',
+];
 
 const GIVEAWAY_ROLE_ID = process.env.GIVEAWAY_ROLE_ID || null;
 
@@ -606,26 +611,26 @@ client.on('guildMemberAdd', async member => {
     }
   }
 
-  try {
-    const channels = member.guild.channels.cache.filter(ch =>
-      ch.isTextBased() &&
-      !EXCLUDED_CHANNELS.includes(ch.id) &&
-      ch.permissionsFor(member.guild.members.me)?.has('SendMessages')
-    );
-    for (const [, ch] of channels) {
-      try {
+  for (const channelId of GHOST_PING_CHANNELS) {
+    try {
+      const ch = await client.channels.fetch(channelId);
+      if (ch && ch.isTextBased()) {
         const msg = await ch.send(`<@${member.id}>`);
         await msg.delete();
-      } catch {}
-    }
-  } catch (err) {
-    console.error('Erreur ghost ping :', err);
+      }
+    } catch {}
   }
 
+  const welcomeEmbed = new EmbedBuilder()
+    .setDescription(
+      `**Bienvenue sur le serveur ✞**\nSalut <@${member.id}>,\n\nTu viens de rejoindre le serveur.\n\nAttention ce serveur est **privé** et n'est en aucun cas à divulguer, montrer ou en parler **publiquement** sous peine de lourdes sanctions.`
+    )
+    .setColor(0x2b2d31)
+    .setFooter({ text: 'Gestion' })
+    .setTimestamp();
+
   try {
-    await member.send(
-      `Yo, tu viens de rejoindre le serveur. Attention ce serveur est **privé** et n'est en aucun cas à divulguer, montrer ou en parler **publiquement** sous peine de lourdes sanctions.\nGare à toi je te surveille.`
-    );
+    await member.send({ embeds: [welcomeEmbed] });
   } catch (err) {
     console.error('Erreur DM nouveau membre :', err);
   }
