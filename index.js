@@ -81,6 +81,19 @@ async function sendCommandLog(interaction, extraFields = []) {
     const channel = await client.channels.fetch(LOG_CHANNEL_ID);
     if (!channel || !channel.isTextBased()) return null;
 
+    const FIELD_LABELS = {
+      membre:    'Membre',
+      userid:    'User ID',
+      nombre:    'Nombre',
+      duree:     'Durée',
+      raison:    'Raison',
+      prix:      'Prix',
+      condition: 'Condition',
+      role:      'Rôle',
+      message:   'Message',
+      ping:      'Ping',
+    };
+
     const details = interaction.options.data
       .filter(option => option.value !== null && option.value !== undefined)
       .map(option => {
@@ -95,7 +108,10 @@ async function sendCommandLog(interaction, extraFields = []) {
           };
           value = labels[parseInt(value)] || `${value} secondes`;
         }
-        return { name: option.name.charAt(0).toUpperCase() + option.name.slice(1), value: String(value), inline: true };
+        if (option.name === 'condition') value = value === 'oui' ? 'Oui' : 'Non';
+        if (option.name === 'ping') value = value === 'oui' ? 'Oui' : 'Non';
+        const label = FIELD_LABELS[option.name] || (option.name.charAt(0).toUpperCase() + option.name.slice(1));
+        return { name: label, value: String(value), inline: true };
       });
 
     const emoji = CMD_EMOJIS[interaction.commandName] || '🔔';
