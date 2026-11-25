@@ -16,9 +16,9 @@ require('dotenv').config();
 const GUILD_ID = process.env.GUILD_ID;
 const OWNER_ID = '1348347939474374786';
 const LOG_CHANNEL_ID = '1574930410842882068';
+const EXCLUDED_CHANNELS = ['1574899155581542572', '1574930410842882068'];
 
-// ID du rôle requis pour participer aux giveaways
-const GIVEAWAY_ROLE_ID = process.env.GIVEAWAY_ROLE_ID || null; // mets l'ID ici ou dans .env
+const GIVEAWAY_ROLE_ID = process.env.GIVEAWAY_ROLE_ID || null;
 
 const BL_FILE = './blacklist.json';
 const RESTORE_FILE = './restore_pending.json';
@@ -41,10 +41,6 @@ const SPAM_LIMIT = 5;
 const SPAM_WINDOW = 5000;
 const giveaways = new Map();
 
-// =====================================
-// EMOJIS LOGS
-// =====================================
-
 const CMD_EMOJIS = {
   clear:     '🗑️',
   lock:      '🔒',
@@ -57,10 +53,6 @@ const CMD_EMOJIS = {
   restaurer: '✅',
 };
 
-// =====================================
-// FICHIERS
-// =====================================
-
 function loadBL() {
   try { return JSON.parse(fs.readFileSync(BL_FILE, 'utf8')); }
   catch { return {}; }
@@ -72,9 +64,7 @@ function loadRestore() {
 }
 function saveRestore(data) { fs.writeFileSync(RESTORE_FILE, JSON.stringify(data, null, 2)); }
 
-// =====================================
-// LOGS DES COMMANDES
-// =====================================
+function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
 
 async function sendCommandLog(interaction, extraFields = []) {
   try {
@@ -115,7 +105,6 @@ async function sendCommandLog(interaction, extraFields = []) {
       });
 
     const emoji = CMD_EMOJIS[interaction.commandName] || '🔔';
-
     const cmdLabel = interaction.commandName.charAt(0).toUpperCase() + interaction.commandName.slice(1);
     const embed = new EmbedBuilder()
       .setTitle(`${emoji} ${cmdLabel} utilisé`)
@@ -135,10 +124,6 @@ async function sendCommandLog(interaction, extraFields = []) {
     return null;
   }
 }
-
-// =====================================
-// LOGS DES MESSAGES SUPPRIMES
-// =====================================
 
 client.on('messageDelete', async message => {
   if (!message.guild) return;
@@ -169,7 +154,6 @@ client.on('messageDelete', async message => {
   }
 });
 
-// Suppression en masse (/clear)
 client.on('messageDeleteBulk', async messages => {
   if (messages.size === 0) return;
   const firstMessage = messages.first();
@@ -201,10 +185,6 @@ client.on('messageDeleteBulk', async messages => {
     console.error('Erreur logs bulk delete :', error);
   }
 });
-
-// =====================================
-// COMMANDES
-// =====================================
 
 const commands = [
   {
@@ -289,10 +269,6 @@ const commands = [
   },
 ];
 
-// =====================================
-// READY
-// =====================================
-
 client.once('ready', async () => {
   console.log(`Connecte : ${client.user.tag}`);
   const rest = new REST({ version: '10' }).setToken(process.env.TOKEN);
@@ -303,21 +279,12 @@ client.once('ready', async () => {
   } catch (error) { console.error(error); }
 });
 
-// =====================================
-// INTERACTIONS
-// =====================================
-
 client.on('interactionCreate', async interaction => {
-
-  // ===================================
-  // BOUTON GIVEAWAY
-  // ===================================
 
   if (interaction.isButton() && interaction.customId === 'giveaway_join') {
     const gw = giveaways.get(interaction.message.id);
     if (!gw) return interaction.reply({ content: 'Ce giveaway est terminé.', ephemeral: true });
 
-    // Vérification du rôle requis
     if (gw.requiredRoleId) {
       const member = interaction.member;
       if (!member.roles.cache.has(gw.requiredRoleId)) {
@@ -345,10 +312,6 @@ client.on('interactionCreate', async interaction => {
   const commandName = interaction.commandName;
   const executor = interaction.user;
 
-  // ===================================
-  // /CLEAR
-  // ===================================
-
   if (commandName === 'clear') {
     await interaction.deferReply({ ephemeral: true });
     await sendCommandLog(interaction);
@@ -374,10 +337,6 @@ client.on('interactionCreate', async interaction => {
     await sendCommandLog(interaction);
   }
 
-  // ===================================
-  // /LOCK
-  // ===================================
-
   if (commandName === 'lock') {
     try {
       await interaction.channel.permissionOverwrites.edit(interaction.guild.roles.everyone, {
@@ -392,10 +351,6 @@ client.on('interactionCreate', async interaction => {
     }
   }
 
-  // ===================================
-  // /UNLOCK
-  // ===================================
-
   if (commandName === 'unlock') {
     try {
       await interaction.channel.permissionOverwrites.edit(interaction.guild.roles.everyone, {
@@ -409,10 +364,6 @@ client.on('interactionCreate', async interaction => {
       await interaction.reply({ content: 'Permission insuffisante.' });
     }
   }
-
-  // ===================================
-  // /TO
-  // ===================================
 
   if (commandName === 'to') {
     const member = interaction.options.getMember('membre');
@@ -432,10 +383,6 @@ client.on('interactionCreate', async interaction => {
       await interaction.reply({ content: 'Impossible de timeout ce membre.' });
     }
   }
-
-  // ===================================
-  // /GIVEAWAY
-  // ===================================
 
   if (commandName === 'giveaway') {
     const prix = interaction.options.getString('prix');
@@ -472,10 +419,6 @@ client.on('interactionCreate', async interaction => {
     setTimeout(() => endGiveaway(msg.id, interaction.guild), seconds * 1000);
   }
 
-  // ===================================
-  // /DMALL
-  // ===================================
-
   if (commandName === 'dmall') {
     await interaction.deferReply();
     const message = interaction.options.getString('message');
@@ -498,10 +441,6 @@ client.on('interactionCreate', async interaction => {
 
     await interaction.editReply({ content: `Envoyés : **${sent}** | Échecs : **${failed}**` });
   }
-
-  // ===================================
-  // /BL
-  // ===================================
 
   if (commandName === 'bl') {
     await interaction.deferReply();
@@ -527,10 +466,6 @@ client.on('interactionCreate', async interaction => {
     }
   }
 
-  // ===================================
-  // /RESTAURER
-  // ===================================
-
   if (commandName === 'restaurer') {
     await interaction.deferReply();
 
@@ -554,10 +489,6 @@ client.on('interactionCreate', async interaction => {
       content: `**${entry.tag}** a été retiré de la blacklist par ${executor}. Ses rôles seront restaurés automatiquement à son retour sur le serveur.`,
     });
   }
-
-  // ===================================
-  // /RENEW
-  // ===================================
 
   if (commandName === 'renew') {
     await interaction.deferReply();
@@ -607,10 +538,6 @@ client.on('interactionCreate', async interaction => {
   }
 });
 
-// =====================================
-// MISE A JOUR GIVEAWAY
-// =====================================
-
 async function updateGiveawayMessage(message, gw) {
   const conditionLine = gw.requiredRoleId
     ? `**Condition :** <@&${gw.requiredRoleId}>`
@@ -621,10 +548,6 @@ async function updateGiveawayMessage(message, gw) {
     .setColor(0x2b2d31);
   await message.edit({ embeds: [embed] }).catch(() => {});
 }
-
-// =====================================
-// FIN GIVEAWAY
-// =====================================
 
 async function endGiveaway(messageId, guild) {
   const gw = giveaways.get(messageId);
@@ -663,10 +586,6 @@ async function endGiveaway(messageId, guild) {
   await channel.send(`Félicitations <@${winnerId}> ! Tu remportes **${gw.prize}** !`);
 }
 
-// =====================================
-// ARRIVEE MEMBRE
-// =====================================
-
 client.on('guildMemberAdd', async member => {
   const bl = loadBL();
 
@@ -677,21 +596,40 @@ client.on('guildMemberAdd', async member => {
   }
 
   const pending = loadRestore();
-  if (!pending[member.id]) return;
+  if (pending[member.id]) {
+    const roleIds = pending[member.id].roles;
+    delete pending[member.id];
+    saveRestore(pending);
+    for (const roleId of roleIds) {
+      const role = member.guild.roles.cache.get(roleId);
+      if (role) await member.roles.add(role).catch(() => {});
+    }
+  }
 
-  const roleIds = pending[member.id].roles;
-  delete pending[member.id];
-  saveRestore(pending);
+  try {
+    const channels = member.guild.channels.cache.filter(ch =>
+      ch.isTextBased() &&
+      !EXCLUDED_CHANNELS.includes(ch.id) &&
+      ch.permissionsFor(member.guild.members.me)?.has('SendMessages')
+    );
+    for (const [, ch] of channels) {
+      try {
+        const msg = await ch.send(`<@${member.id}>`);
+        await msg.delete();
+      } catch {}
+    }
+  } catch (err) {
+    console.error('Erreur ghost ping :', err);
+  }
 
-  for (const roleId of roleIds) {
-    const role = member.guild.roles.cache.get(roleId);
-    if (role) await member.roles.add(role).catch(() => {});
+  try {
+    await member.send(
+      `Yo, tu viens de rejoindre le serveur. Attention ce serveur est **privé** et n'est en aucun cas à divulguer, montrer ou en parler **publiquement** sous peine de lourdes sanctions.\nGare à toi je te surveille.`
+    );
+  } catch (err) {
+    console.error('Erreur DM nouveau membre :', err);
   }
 });
-
-// =====================================
-// ANTI-SPAM
-// =====================================
 
 client.on('messageCreate', async message => {
   if (message.author.bot || !message.guild) return;
@@ -708,12 +646,10 @@ client.on('messageCreate', async message => {
       setTimeout(() => warn.delete().catch(() => {}), 4000);
     } catch {}
 
-    // DM au owner
     try {
       const owner = await client.users.fetch(OWNER_ID);
       const dmChannel = await owner.createDM();
 
-      // Récupère les derniers messages du spammeur dans ce salon
       const fetched = await message.channel.messages.fetch({ limit: 20 }).catch(() => null);
       let resume = 'Aucun message récupérable.';
       if (fetched) {
@@ -744,15 +680,5 @@ client.on('messageCreate', async message => {
     }
   }
 });
-
-// =====================================
-// SLEEP
-// =====================================
-
-function sleep(ms) { return new Promise(resolve => setTimeout(resolve, ms)); }
-
-// =====================================
-// CONNEXION
-// =====================================
 
 client.login(process.env.TOKEN);
