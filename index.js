@@ -623,9 +623,9 @@ client.on('guildMemberAdd', async member => {
 
   const welcomeEmbed = new EmbedBuilder()
     .setDescription(
-      `**Bienvenue sur le serveur**\nSalut ${member.user.username},\n\nTu viens de rejoindre le serveur.\n\nAttention ce serveur est **privé** et n'est en aucun cas à divulguer, montrer ou en parler **publiquement** sous peine de lourdes sanctions.`
+      `**Bienvenue sur le serveur 🌙**\nSalut ${member.user.username},\n\nTu viens de rejoindre le serveur.\n\nAttention ce serveur est **privé** et n'est en aucun cas à divulguer, montrer ou en parler **publiquement** sous peine de lourdes sanctions.`
     )
-    .setColor(0xffffff)
+    .setColor(0x5865F2)
     .setFooter({ text: 'Gestion' })
     .setTimestamp();
 
