@@ -116,8 +116,9 @@ async function sendCommandLog(interaction, extraFields = []) {
 
     const emoji = CMD_EMOJIS[interaction.commandName] || '🔔';
 
+    const cmdLabel = interaction.commandName.charAt(0).toUpperCase() + interaction.commandName.slice(1);
     const embed = new EmbedBuilder()
-      .setTitle(`${emoji} ${interaction.commandName} utilisé`)
+      .setTitle(`${emoji} ${cmdLabel} utilisé`)
       .setColor(LOG_COLOR)
       .addFields(
         { name: 'Auteur', value: `<@${interaction.user.id}>`, inline: true },
@@ -314,7 +315,7 @@ client.on('interactionCreate', async interaction => {
 
   if (interaction.isButton() && interaction.customId === 'giveaway_join') {
     const gw = giveaways.get(interaction.message.id);
-    if (!gw) return interaction.reply({ content: '❌ Ce giveaway est terminé.', ephemeral: true });
+    if (!gw) return interaction.reply({ content: 'Ce giveaway est terminé.', ephemeral: true });
 
     // Vérification du rôle requis
     if (gw.requiredRoleId) {
@@ -323,19 +324,19 @@ client.on('interactionCreate', async interaction => {
         const role = interaction.guild.roles.cache.get(gw.requiredRoleId);
         const roleName = role ? role.name : 'requis';
         return interaction.reply({
-          content: `❌ Tu dois avoir le rôle **${roleName}** pour participer à ce giveaway.`,
+          content: `Tu dois avoir le rôle **${roleName}** pour participer à ce giveaway.`,
           ephemeral: true,
         });
       }
     }
 
     if (gw.participants.has(interaction.user.id)) {
-      return interaction.reply({ content: '⚠️ Tu participes déjà !', ephemeral: true });
+      return interaction.reply({ content: 'Tu participes déjà !', ephemeral: true });
     }
 
     gw.participants.add(interaction.user.id);
     await updateGiveawayMessage(interaction.message, gw);
-    return interaction.reply({ content: '✅ Tu participes au giveaway !', ephemeral: true });
+    return interaction.reply({ content: 'Tu participes au giveaway !', ephemeral: true });
   }
 
   if (!interaction.isChatInputCommand()) return;
@@ -444,7 +445,7 @@ client.on('interactionCreate', async interaction => {
     const endTime = Date.now() + seconds * 1000;
 
     if (condition === 'oui' && !requiredRole) {
-      return interaction.reply({ content: '❌ Tu as sélectionné "Rôle requis" mais tu n\'as pas renseigné de rôle.', ephemeral: true });
+      return interaction.reply({ content: 'Tu as sélectionné "Rôle requis" mais tu n\'as pas renseigné de rôle.', ephemeral: true });
     }
 
     const btn = new ButtonBuilder().setCustomId('giveaway_join').setLabel('Participer').setEmoji('🎉').setStyle(ButtonStyle.Secondary);
@@ -480,7 +481,7 @@ client.on('interactionCreate', async interaction => {
     const message = interaction.options.getString('message');
     const ping = interaction.options.getString('ping') === 'oui';
 
-    await interaction.editReply({ content: '📨 Envoi en cours...' });
+    await interaction.editReply({ content: 'Envoi en cours...' });
 
     let members;
     try { members = await interaction.guild.members.fetch(); }
@@ -495,7 +496,7 @@ client.on('interactionCreate', async interaction => {
       await sleep(1100);
     }
 
-    await interaction.editReply({ content: `📨 Envoyés : **${sent}** | Échecs : **${failed}**` });
+    await interaction.editReply({ content: `Envoyés : **${sent}** | Échecs : **${failed}**` });
   }
 
   // ===================================
@@ -519,7 +520,7 @@ client.on('interactionCreate', async interaction => {
 
     try {
       await member.ban({ reason: raison });
-      await interaction.editReply({ content: `🚫 ${member} a été blacklist et banni par ${executor}.` });
+      await interaction.editReply({ content: `${member} a été blacklist et banni par ${executor}.` });
     } catch (error) {
       console.error(error);
       await interaction.editReply({ content: `Impossible de bannir ce membre : ${error.message}` });
@@ -550,7 +551,7 @@ client.on('interactionCreate', async interaction => {
     saveRestore(pending);
 
     await interaction.editReply({
-      content: `✅ **${entry.tag}** a été retiré de la blacklist par ${executor}. Ses rôles seront restaurés automatiquement à son retour sur le serveur.`,
+      content: `**${entry.tag}** a été retiré de la blacklist par ${executor}. Ses rôles seront restaurés automatiquement à son retour sur le serveur.`,
     });
   }
 
@@ -579,7 +580,7 @@ client.on('interactionCreate', async interaction => {
       const logChannel = await client.channels.fetch(LOG_CHANNEL_ID).catch(() => null);
       if (logChannel && logChannel.isTextBased()) {
         const embed = new EmbedBuilder()
-          .setTitle('♻️ renew utilisé')
+          .setTitle('♻️ Renew utilisé')
           .setColor(LOG_COLOR)
           .addFields(
             { name: 'Auteur', value: `<@${executor.id}>`, inline: true },
@@ -597,7 +598,7 @@ client.on('interactionCreate', async interaction => {
       });
 
       await newChannel.setPosition(position).catch(() => {});
-      await newChannel.send(`♻️ Ce salon a été **recréé** par ${executor}.`);
+      await newChannel.send(`Ce salon a été **recréé** par ${executor}.`);
 
     } catch (error) {
       console.error(error);
@@ -659,7 +660,7 @@ async function endGiveaway(messageId, guild) {
     .setColor(0x2b2d31);
 
   await msgObj.edit({ embeds: [embedFin], components: [row] }).catch(() => {});
-  await channel.send(`🎉 Félicitations <@${winnerId}> ! Tu remportes **${gw.prize}** !`);
+  await channel.send(`Félicitations <@${winnerId}> ! Tu remportes **${gw.prize}** !`);
 }
 
 // =====================================
@@ -703,7 +704,7 @@ client.on('messageCreate', async message => {
   if (prev.length >= SPAM_LIMIT) {
     spamMap.set(message.author.id, []);
     try {
-      const warn = await message.channel.send(`⚠️ ${message.author} Tu envoies des messages trop rapidement.`);
+      const warn = await message.channel.send(`${message.author} Tu envoies des messages trop rapidement.`);
       setTimeout(() => warn.delete().catch(() => {}), 4000);
     } catch {}
 
